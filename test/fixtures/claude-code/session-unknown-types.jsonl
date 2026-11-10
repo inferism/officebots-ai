@@ -1,0 +1,6 @@
+{"type":"file-history-snapshot","messageId":"rec-0000","snapshot":{"trackedFileBackups":{}}}
+{"type":"api-request-shape","sessionId":"sess-0004","timestamp":"2026-11-10T14:00:00.000Z","shape":"<redacted>"}
+{"type":"atis-latch","sessionId":"sess-0004","timestamp":"2026-11-10T14:00:01.000Z"}
+{"type":"future-record-type-9","sessionId":"sess-0004","timestamp":"2026-11-10T14:00:02.000Z","payload":{"anything":"<redacted>"}}
+{"type":"user","uuid":"rec-0001","parentUuid":null,"sessionId":"sess-0004","timestamp":"2026-11-10T14:00:03.000Z","cwd":"/home/dev/demo-project","gitBranch":"main","version":"2.1.321","entrypoint":"cli","isSidechain":false,"message":{"role":"user","content":"<redacted>"}}
+{"type":"assistant","uuid":"rec-0002","parentUuid":"rec-0001","sessionId":"sess-0004","timestamp":"2026-11-10T14:00:10.000Z","cwd":"/home/dev/demo-project","gitBranch":"main","version":"2.1.321","entrypoint":"cli","isSidechain":false,"requestId":"req_test_31","message":{"id":"msg_test_31","role":"assistant","model":"claude-sonnet-5-5","usage":{"input_tokens":2,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens_details":{"thinking_tokens":0}},"stop_reason":"end_turn","content":[{"type":"text","text":"<redacted>"}]}}
