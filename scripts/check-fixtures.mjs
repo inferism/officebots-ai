@@ -3,6 +3,7 @@
 // Findings print as file:line plus the rule name, never the matched text.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { zstdDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const RULES = [
@@ -29,10 +30,20 @@ function* walk(dir) {
 export function scanDir(dir) {
   const findings = [];
   for (const file of walk(dir)) {
-    const lines = readFileSync(file, "utf8").split(/\r?\n/);
-    lines.forEach((text, i) => {
+    let text;
+    if (file.endsWith(".zst")) {
+      // compressed fixtures are scanned by their decompressed content
+      try {
+        text = zstdDecompressSync(readFileSync(file)).toString("utf8");
+      } catch {
+        findings.push({ file, line: 1, rule: "undecodable zstd file" });
+        continue;
+      }
+    } else text = readFileSync(file, "utf8");
+    const lines = text.split(/\r?\n/);
+    lines.forEach((lineText, i) => {
       for (const [rule, re] of RULES) {
-        if (re.test(text)) findings.push({ file, line: i + 1, rule });
+        if (re.test(lineText)) findings.push({ file, line: i + 1, rule });
       }
     });
   }

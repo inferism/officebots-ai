@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { zstdCompressSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 
 const script = join(import.meta.dirname, "..", "..", "scripts", "check-fixtures.mjs");
@@ -30,6 +31,17 @@ describe("check-fixtures", () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/x\.jsonl:2: email address/);
     expect(r.stderr).not.toContain("someone@example.com");
+  });
+
+  it("looks inside compressed fixtures", () => {
+    const d = mkdtempSync(join(tmpdir(), "officebots-fx-"));
+    dirs.push(d);
+    writeFileSync(join(d, "x.jsonl.zst"), zstdCompressSync(Buffer.from('{"userEmail":"someone@example.com"}\n')));
+    const r = spawnSync(process.execPath, [script, d], { encoding: "utf8" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/x\.jsonl\.zst:1: email address/);
+    writeFileSync(join(d, "x.jsonl.zst"), Buffer.from("not zstd"));
+    expect(spawnSync(process.execPath, [script, d], { encoding: "utf8" }).stderr).toContain("undecodable");
   });
 
   it.each([
