@@ -32,6 +32,8 @@ export type OfficeOptions = {
   onProblem?: (msg: string) => void;
   /** Called when the project's .officebots/.state/run.json disappears (the folder was deleted): the office has nothing left to serve. */
   onOrphaned?: () => void;
+  /** How often (ms) the settings files are checked for edits. Default 500. */
+  settingsPollMs?: number;
   /** Max snapshot pushes per second is 1000 / throttleMs. Default 250 (4/s). */
   throttleMs?: number;
 };
@@ -149,7 +151,7 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
     };
     mkdirSync(dirname(personalPath), { recursive: true });
     reload();
-    settingsWatch = watchFiles([projectConfigPath(opts.root), personalPath], reload);
+    settingsWatch = watchFiles([projectConfigPath(opts.root), personalPath], reload, opts.settingsPollMs);
   }
 
   await ingest?.start();

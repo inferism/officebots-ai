@@ -51,6 +51,7 @@ async function open(sources: Parameters<typeof startOffice>[0]["logSources"]) {
     hashAccount: createAccountHasher(personal),
     onProblem: (m) => problems.push(m),
     throttleMs: 20,
+    settingsPollMs: 60, // edits are noticed quickly, so these tests do not depend on a slow poll
   });
   return office;
 }
