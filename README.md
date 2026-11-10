@@ -4,14 +4,15 @@
 
 **A live isometric office that shows which AI agents are working on your project.**
 
-Every agent gets a character at a desk, with its model, role, account and token count.<br>
+Every agent is a little robot at a desk, with its model, role, account and token count.<br>
+The room follows the time of day where you are: day, dusk, night and dawn.<br>
 Claude Code and Codex are read from their local logs. Nothing leaves your machine.
 
 [![CI](https://github.com/inferism/officebots-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/inferism/officebots-ai/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node 22.15+](https://img.shields.io/badge/node-%E2%89%A522.15-339933)
 
-<img src="docs/img/office.png" alt="The officebots office: seven characters at desks, each with a label showing role, account, model and status, and a sidebar listing token counts" width="860">
+<img src="docs/img/day.png" alt="The officebots office in daylight: seven robots at desks with speech bubbles showing account and status, a window with a sunny sky, a whiteboard with the day's token total, and a roster along the bottom" width="860">
 
 <sub>A synthetic demo office (<code>officebots demo</code>), not real project data.</sub>
 
@@ -19,18 +20,36 @@ Claude Code and Codex are read from their local logs. Nothing leaves your machin
 
 ## What it does
 
-- **One character per agent.** A character is a tool, a model, an account and a role, for example "Claude Code, Opus 5.5, work account, Lead". Switching model moves the work to the other character, which is correct for "who worked on this".
-- **Live status.** Green while working, amber while waiting for you, asleep (head down, a floating "zZ") after 90 seconds of silence. The next event wakes it at the same desk.
+- **One robot per agent.** A character is a tool, a model, an account and a role, for example "Claude Code, Opus 5.5, work account, Lead". Switching model moves the work to the other character, which is correct for "who worked on this".
+- **Live status.** The robot's face shows it: ^ ^ eyes while working, dots while waiting for you, - - asleep (head down, a "zZ" bubble) after 90 seconds of silence. The next event wakes it at the same desk.
 - **Token counts.** The number is output plus fresh input (cache reads are excluded); hover a character for the full breakdown.
-- **Subagents show up as interns**, small figures around their parent's desk with a `×N` badge.
-- **It scales.** Past 12 desks the longest-sleeping characters move to sofas in a lounge, and the room grows and zooms out to fit.
+- **Subagents show up as interns**, tiny robots around their parent's desk with a `×N` badge.
+- **It scales.** Past 12 desks the longest-sleeping robots move to sofas in a lounge, and the room grows and zooms out to fit.
 - **One office per project.** Sessions in subfolders and git worktrees count as the same project. Each office runs on its own local port.
+- **It follows your clock.** By day it is a bright, warm office with a sunny window. As the sun sets the sky turns orange and purple, the neon comes on, and at night the floor lights up like a grid under a city skyline. Dawn brings it back. The window shows where the sun or moon really is, and the wall clock shows your real time. See [the four looks](#the-four-looks).
+- **The totals are in the room.** The day's token count is on the whiteboard, and every agent has a nameplate on its desk and a roster chip in the dock along the bottom.
 - **Standalone snapshots.** `officebots export` writes a single `.html` file you can open anywhere, with no server running.
 
 <div align="center">
-<img src="docs/img/lounge.png" alt="A larger office with twelve desks and a lounge of eight sofas where sleeping agents sit" width="860">
-<br><sub>24 synthetic agents: sleepers have moved to the lounge.</sub>
+<img src="docs/img/lounge.png" alt="A larger office at dusk with twelve desks and a lounge where sleeping robots sit on sofas, a glowing lamp and the neon starting to come on" width="860">
+<br><sub>24 synthetic agents at dusk: sleepers have moved to the lounge.</sub>
 </div>
+
+### The four looks
+
+The look follows the clock of whoever is viewing the page, so a night owl gets a night office. It blends smoothly between them, hour by hour.
+
+| Dawn (about 06:00) | Day (08:00 to 17:00) |
+|---|---|
+| <img src="docs/img/dawn.png" alt="Dawn: a lavender and peach sky, warm light" width="420"> | <img src="docs/img/day.png" alt="Day: bright, sunny" width="420"> |
+| **Dusk (about 18:45)** | **Night (about 20:15 to 04:45)** |
+| <img src="docs/img/dusk.png" alt="Dusk: orange and purple sky, neon coming on" width="420"> | <img src="docs/img/night.png" alt="Night: neon grid floor, city skyline, glowing robots" width="420"> |
+
+To try the other looks without waiting for them, add a parameter to the office's address:
+
+- `?phase=dusk` (or `dawn`, `day`, `night`) holds that look.
+- `?time=18:45` holds a specific time.
+- `?time=05:00&speed=1200` plays a whole day in about a minute.
 
 ## Install
 

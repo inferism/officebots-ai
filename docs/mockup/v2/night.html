@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>officebots mockup B: Night Shift</title>
+<style>
+  html, body { margin: 0; background: #0a0714; }
+  canvas { display: block; margin: 0 auto; max-width: 100%; height: auto !important; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="engine.js"></script>
+<script>
+const { hex, mix, AGENTS } = OFFICE;
+const MONO = 'Consolas, "Courier New", monospace';
+const CYAN = "#37e6ff", PINK = "#ff4fa3", VIOLET = "#9a7bff";
+const fmt = (n) => n.toLocaleString("en-US");
+const total = AGENTS.reduce((n, a) => n + a.tokens, 0);
+const statusCss = { working: "#39ff88", waiting: "#ffb02e", sleeping: "#6b6b8f" };
+const lighten = (hx, t = 0.35) => `rgb(${mix(hex(hx), [255, 255, 255], t).map((v) => v | 0).join(",")})`;
+
+function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+function glowStroke(c, color, blur, fn) { c.save(); c.shadowColor = color; c.shadowBlur = blur; c.strokeStyle = color; fn(); c.restore(); }
+const rand = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+const theme = {
+  W: 1600, H: 1000, tw: 112, ox: 739, oy: 318,
+  shade: { top: 1.12, y: 0.86, x: 0.66 },
+  shadowAlpha: 0.35,
+  robotScale: 1.2,
+  glow: true,
+  slab: [18, 14, 34],
+  floorBase: [28, 23, 50],
+  wall: { back: [46, 38, 82], left: [34, 28, 62], base: [70, 54, 128] },
+  desk: { top: [66, 56, 108], leg: [30, 26, 52], key: [22, 20, 38], mug: [200, 210, 255], stand: [36, 34, 58], monitor: [16, 14, 28] },
+  sofa: { base: [70, 44, 116], back: [92, 56, 146], arm: [108, 68, 168] },
+  robot: {
+    chassis: (col) => mix(col, [74, 72, 116], 0.5),
+    head: [104, 102, 156],
+    base: [34, 32, 58],
+    visor: "#04030b",
+    visorEdge: (col) => `rgba(${col[0]},${col[1]},${col[2]},.55)`,
+    eye: (s, col) => (s === "working" ? lighten(`#${col.map((v) => v.toString(16).padStart(2, "0")).join("")}`, 0.3) : s === "waiting" ? "#ffcf6b" : "#6b6b9a"),
+    plate: (col) => `rgb(${col.join(",")})`,
+    antenna: (col, a) => (a.status === "sleeping" ? [90, 90, 130] : col),
+    glow: true,
+  },
+  statusColor: (s) => statusCss[s],
+
+  background(g) {
+    const c = g.ctx;
+    const gr = c.createLinearGradient(0, 0, 0, g.H);
+    gr.addColorStop(0, "#0a0714"); gr.addColorStop(1, "#171034");
+    c.fillStyle = gr; c.fillRect(0, 0, g.W, g.H);
+    for (const [x, y, col] of [[200, 150, "rgba(255,79,163,.16)"], [1450, 250, "rgba(55,230,255,.13)"], [800, 900, "rgba(154,123,255,.12)"]]) {
+      const rg = c.createRadialGradient(x, y, 20, x, y, 620);
+      rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = rg; c.fillRect(0, 0, g.W, g.H);
+    }
+    c.fillStyle = "rgba(255,255,255,.55)";
+    for (let i = 0; i < 90; i++) c.fillRect(rand(i) * g.W, rand(i + 99) * 260, 1.5, 1.5);
+  },
+
+  floor(g, R) {
+    const c = g.ctx;
+    g.floorPlane(() => {
+      const sheen = c.createRadialGradient(R.w * 0.5, 0.2, 0.2, R.w * 0.5, 0.2, R.d * 1.1);
+      sheen.addColorStop(0, "rgba(255,79,163,.22)"); sheen.addColorStop(0.5, "rgba(120,80,220,.08)"); sheen.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = sheen; c.fillRect(0, 0, R.w, R.d);
+      for (let x = 0; x <= R.w; x++) { c.strokeStyle = x % 2 ? "rgba(55,230,255,.22)" : "rgba(255,79,163,.34)"; c.lineWidth = 0.022; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, R.d); c.stroke(); }
+      for (let y = 0; y <= R.d; y++) { c.strokeStyle = y % 2 ? "rgba(55,230,255,.22)" : "rgba(255,79,163,.34)"; c.lineWidth = 0.022; c.beginPath(); c.moveTo(0, y); c.lineTo(R.w, y); c.stroke(); }
+      // lounge pad
+      c.fillStyle = "rgba(154,123,255,.16)"; rr(c, 6.1, 3.8, 3.9, 4.0, 0.15); c.fill();
+      c.strokeStyle = "rgba(154,123,255,.8)"; c.lineWidth = 0.05; rr(c, 6.1, 3.8, 3.9, 4.0, 0.15); c.stroke();
+    });
+    // glowing floor edge
+    const { P } = g;
+    glowStroke(c, PINK, 14, () => { c.lineWidth = 2.5; c.beginPath(); c.moveTo(...P(0, R.d)); c.lineTo(...P(R.w, R.d)); c.lineTo(...P(R.w, 0)); c.stroke(); });
+  },
+
+  decor(g, R) {
+    const c = g.ctx, { P } = g;
+    // glowing wall trims
+    glowStroke(c, CYAN, 12, () => { c.lineWidth = 2.5; c.beginPath(); c.moveTo(...P(0, 0, R.h)); c.lineTo(...P(R.w, 0, R.h)); c.moveTo(...P(0, 0, R.h)); c.lineTo(...P(0, R.d, R.h)); c.stroke(); });
+    glowStroke(c, PINK, 10, () => { c.lineWidth = 2; c.beginPath(); c.moveTo(...P(0, 0, 0.17)); c.lineTo(...P(R.w, 0, 0.17)); c.moveTo(...P(0, 0, 0.17)); c.lineTo(...P(0, R.d, 0.17)); c.stroke(); });
+    // big window: the city at night
+    g.planeX(1.2, 0, 3.0, () => {
+      const W = 800, H = 205;
+      const sky = c.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, "#150b3d"); sky.addColorStop(0.55, "#5a2a8c"); sky.addColorStop(1, "#ff5f9e");
+      c.fillStyle = sky; c.fillRect(0, 0, W, H);
+      c.fillStyle = "rgba(255,255,255,.8)"; for (let i = 0; i < 60; i++) c.fillRect(rand(i + 7) * W, rand(i + 5) * 90, 1.6, 1.6);
+      const moon = c.createRadialGradient(610, 62, 6, 610, 62, 60);
+      moon.addColorStop(0, "#fff7e6"); moon.addColorStop(0.35, "#ffe3f0"); moon.addColorStop(1, "rgba(255,160,210,0)");
+      c.fillStyle = moon; c.beginPath(); c.arc(610, 62, 60, 0, 7); c.fill();
+      c.fillStyle = "#fff9ec"; c.beginPath(); c.arc(610, 62, 26, 0, 7); c.fill();
+      for (const [layer, col, hMin, hVar, lit] of [[0, "#2a1458", 50, 70, 0.14], [1, "#170a38", 36, 90, 0.3]]) {
+        c.fillStyle = col;
+        for (let x = -10, i = 0; x < W; i++) {
+          const bw = 26 + rand(i + layer * 31) * 34, bh = hMin + rand(i * 3 + layer * 17) * hVar;
+          c.fillRect(x, H - bh, bw, bh);
+          c.fillStyle = layer ? "#ffd86b" : "#37e6ff";
+          for (let wy = H - bh + 8; wy < H - 6; wy += 11) for (let wx = x + 5; wx < x + bw - 5; wx += 9) if (rand(wx * 7 + wy * 13 + layer) < lit) c.fillRect(wx, wy, 3.2, 4.5);
+          c.fillStyle = col; x += bw + 2;
+        }
+      }
+      c.strokeStyle = "#0b0720"; c.lineWidth = 10; c.strokeRect(0, 0, W, H);
+      c.lineWidth = 6; c.beginPath(); for (const f of [0.25, 0.5, 0.75]) { c.moveTo(W * f, 0); c.lineTo(W * f, H); } c.stroke();
+    });
+    // neon sign + token meter on the left wall
+    g.planeY(0, 7.2, 2.9, () => {
+      c.save();
+      c.font = `bold 62px ${MONO}`; c.textBaseline = "top";
+      c.shadowColor = PINK; c.shadowBlur = 24; c.fillStyle = "#ffd3ea";
+      c.fillText("OFFICEBOTS", 10, 0);
+      c.shadowBlur = 0; c.strokeStyle = PINK; c.lineWidth = 4; c.beginPath(); c.moveTo(12, 78); c.lineTo(420, 78); c.stroke();
+      c.restore();
+    });
+    g.planeY(0, 7.2, 2.0, () => {
+      c.fillStyle = "rgba(8,6,20,.92)"; rr(c, 0, 0, 560, 130, 8); c.fill();
+      glowStroke(c, CYAN, 8, () => { c.lineWidth = 2.5; rr(c, 0, 0, 560, 130, 8); c.stroke(); });
+      c.fillStyle = "#7fe9ff"; c.font = `13px ${MONO}`; c.fillText("TOKENS TODAY", 20, 28);
+      c.save(); c.shadowColor = CYAN; c.shadowBlur = 14; c.fillStyle = "#c9f6ff"; c.font = `bold 50px ${MONO}`; c.fillText(fmt(total), 20, 82); c.restore();
+      const max = Math.max(...AGENTS.map((a) => a.tokens));
+      AGENTS.forEach((a, i) => { c.fillStyle = a.color; c.globalAlpha = 0.9; const bh = (a.tokens / max) * 70; c.fillRect(372 + i * 25, 104 - bh, 17, bh); c.globalAlpha = 1; });
+    });
+  },
+
+  props(g, R) {
+    const c = g.ctx;
+    const rack = { depth: 0.4 + 0.4 + 0.5, draw: () => {
+      g.shadow(0.7, 0.7, 0.55, 0.4, 0.35);
+      g.box(0.25, 0.25, 0, 0.8, 0.6, 1.9, [20, 18, 36]);
+      g.planeX(0.25, 0.85, 1.9, () => {
+        for (let r = 0; r < 7; r++) for (let k = 0; k < 4; k++) {
+          const on = rand(r * 9 + k) > 0.35; c.save(); c.shadowColor = on ? [CYAN, "#39ff88", PINK][k % 3] : "transparent"; c.shadowBlur = 8;
+          c.fillStyle = on ? [CYAN, "#39ff88", PINK][k % 3] : "#2a2748"; c.fillRect(8 + k * 18, 12 + r * 25, 10, 6); c.restore();
+        }
+      });
+    } };
+    const vending = { depth: 9.2 + 0.4 + 0.5, draw: () => {
+      g.shadow(9.6, 0.8, 0.55, 0.4, 0.35);
+      g.box(9.1, 0.25, 0, 0.8, 0.7, 2.0, [26, 20, 52]);
+      g.planeX(9.1, 0.95, 2.0, () => {
+        c.save(); c.shadowColor = PINK; c.shadowBlur = 16; c.fillStyle = "rgba(255,79,163,.85)"; rr(c, 10, 14, 60, 120, 6); c.fill(); c.restore();
+        for (let r = 0; r < 4; r++) for (let k = 0; k < 3; k++) { c.fillStyle = ["#ffd86b", CYAN, "#9a7bff"][(r + k) % 3]; c.fillRect(16 + k * 17, 22 + r * 24, 11, 14); }
+        c.fillStyle = "#0a0716"; c.fillRect(14, 150, 52, 28);
+      });
+    } };
+    const lamp = { depth: 7.0 + 7.0 + 0.5, draw: () => {
+      const [px, py] = g.P(9.45, 7.2, 1.5);
+      const rg = c.createRadialGradient(px, py, 2, px, py, 90); rg.addColorStop(0, "rgba(255,210,120,.7)"); rg.addColorStop(1, "rgba(255,210,120,0)");
+      c.fillStyle = rg; c.fillRect(px - 100, py - 100, 200, 200);
+      g.box(9.4, 7.15, 0, 0.1, 0.1, 1.45, [60, 56, 90]); g.box(9.28, 7.03, 1.45, 0.34, 0.34, 0.25, [255, 214, 130]);
+    } };
+    const table = { depth: 7.9 + 5.6 + 0.6, draw: () => {
+      g.shadow(8.1, 5.85, 0.5, 0.4, 0.35);
+      g.box(7.75, 5.55, 0.0, 0.7, 0.55, 0.3, [52, 44, 92]);
+      g.box(7.98, 5.7, 0.3, 0.14, 0.14, 0.14, [200, 210, 255]);
+    } };
+    return [rack, vending, lamp, table];
+  },
+
+  // glowing light under each workstation, in the character's color
+  underglow(g, cx, cy, rx, ry, a) {
+    const c = g.ctx;
+    const col = hex(a.color);
+    g.floorPlane(() => {
+      const rg = c.createRadialGradient(cx, cy, 0.05, cx, cy, Math.max(rx, ry));
+      rg.addColorStop(0, `rgba(${col.join(",")},${a.status === "sleeping" ? 0.1 : 0.42})`); rg.addColorStop(1, `rgba(${col.join(",")},0)`);
+      c.fillStyle = rg; c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, 7); c.fill();
+    });
+  },
+
+  nameplate(g, dx, dy, top, a) {
+    const c = g.ctx;
+    g.box(dx + 0.55, dy + 0.9, top + 0.08, 0.9, 0.05, 0.26, [10, 8, 22]);
+    g.planeX(dx + 0.55, dy + 0.95, top + 0.08 + 0.26, () => {
+      c.save(); c.shadowColor = a.color; c.shadowBlur = 8; c.fillStyle = a.color; c.fillRect(0, 21, 90, 4);
+      c.shadowBlur = 0; c.fillStyle = "#e9e6ff"; c.font = `bold 15px ${MONO}`; c.textAlign = "center"; c.fillText(a.role.toUpperCase(), 45, 16); c.restore();
+    });
+  },
+
+  bubble(g, [px, py], a) {
+    const c = g.ctx;
+    const txt = a.status === "sleeping" ? "ZZZ" : a.status === "working" ? "WORKING" : "YOUR TURN";
+    const acct = `@${a.acct.toUpperCase()}`;
+    c.save();
+    c.font = `bold 14px ${MONO}`; const w1 = c.measureText(acct).width;
+    c.font = `13px ${MONO}`; const w2 = c.measureText(txt).width;
+    const w = w1 + w2 + 56, h = 32, x = px - w / 2, y = py - h - 12;
+    c.fillStyle = "rgba(10,8,24,.86)"; rr(c, x, y, w, h, 6); c.fill();
+    glowStroke(c, a.color, 10, () => { c.lineWidth = 2; rr(c, x, y, w, h, 6); c.stroke(); });
+    c.shadowColor = statusCss[a.status]; c.shadowBlur = 10; c.fillStyle = statusCss[a.status]; c.beginPath(); c.arc(x + 16, y + 16, 5, 0, 7); c.fill();
+    c.shadowBlur = 0; c.textAlign = "left"; c.font = `bold 14px ${MONO}`; c.fillStyle = lighten(a.color, 0.5); c.fillText(acct, x + 28, y + 21);
+    c.font = `13px ${MONO}`; c.fillStyle = "#9d9bc7"; c.fillText(txt, x + 28 + w1 + 10, y + 21);
+    c.restore();
+  },
+
+  overlay(g, agents) {
+    const c = g.ctx;
+    // scanlines + vignette
+    c.fillStyle = "rgba(0,0,0,.10)";
+    for (let y = 0; y < g.H; y += 3) c.fillRect(0, y, g.W, 1);
+    const vg = c.createRadialGradient(g.W / 2, g.H / 2, g.H * 0.45, g.W / 2, g.H / 2, g.H * 0.95);
+    vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.42)");
+    c.fillStyle = vg; c.fillRect(0, 0, g.W, g.H);
+    c.save();
+    // header
+    c.shadowColor = CYAN; c.shadowBlur = 16; c.fillStyle = "#c9f6ff"; c.font = `bold 30px ${MONO}`; c.fillText("OFFICEBOTS", 44, 62);
+    c.shadowBlur = 0; c.fillStyle = "#7d7aa8"; c.font = `14px ${MONO}`; c.fillText("// DEMO PROJECT  ·  NIGHT SHIFT", 46, 86);
+    c.textAlign = "right"; c.fillStyle = "#c9f6ff"; c.font = `bold 18px ${MONO}`;
+    c.fillText(`AGENTS ${String(agents.length).padStart(2, "0")}   TOKENS ${fmt(total)}`, g.W - 44, 62);
+    c.fillStyle = "#7d7aa8"; c.font = `13px ${MONO}`; c.fillText("LIVE  ●  LOCAL ONLY", g.W - 44, 86);
+    c.restore();
+
+    // bottom HUD
+    const x0 = 40, y0 = 890, w = g.W - 80, h = 90;
+    c.save();
+    c.fillStyle = "rgba(20,16,46,.72)"; rr(c, x0, y0, w, h, 10); c.fill();
+    const grad = c.createLinearGradient(x0, 0, x0 + w, 0); grad.addColorStop(0, PINK); grad.addColorStop(1, CYAN);
+    c.shadowColor = VIOLET; c.shadowBlur = 14; c.strokeStyle = grad; c.lineWidth = 2; rr(c, x0, y0, w, h, 10); c.stroke();
+    c.restore();
+    const cw = (w - 40) / agents.length, max = Math.max(...agents.map((a) => a.tokens));
+    agents.forEach((a, i) => {
+      const x = x0 + 22 + i * cw;
+      c.save();
+      c.shadowColor = statusCss[a.status]; c.shadowBlur = 8; c.fillStyle = statusCss[a.status]; c.beginPath(); c.arc(x + 5, y0 + 26, 5, 0, 7); c.fill();
+      c.shadowBlur = 0; c.textAlign = "left";
+      c.fillStyle = "#e9e6ff"; c.font = `bold 14px ${MONO}`; c.fillText(`${a.role.toUpperCase()} @${a.acct.toUpperCase()}`, x + 18, y0 + 31);
+      c.fillStyle = "#7d7aa8"; c.font = `12px ${MONO}`; c.fillText(a.model, x, y0 + 50);
+      // segmented token bar
+      const segs = 12, on = Math.max(1, Math.round((a.tokens / max) * segs));
+      for (let s = 0; s < segs; s++) { c.fillStyle = s < on ? a.color : "rgba(255,255,255,.10)"; if (s < on) { c.shadowColor = a.color; c.shadowBlur = 6; } else c.shadowBlur = 0; c.fillRect(x + s * 12, y0 + 58, 9, 7); }
+      c.shadowBlur = 0; c.fillStyle = "#c9f6ff"; c.font = `bold 13px ${MONO}`; c.fillText(fmt(a.tokens), x, y0 + 80);
+      c.restore();
+    });
+    c.fillStyle = "rgba(180,176,230,.5)"; c.font = `12px ${MONO}`; c.textAlign = "right";
+    c.fillText("MOCKUP B · NIGHT SHIFT · demo data", g.W - 40, 994);
+  },
+};
+OFFICE.render(document.getElementById("c"), theme);
+</script>
+</body>
+</html>

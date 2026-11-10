@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>officebots mockup A: Daylight Studio</title>
+<style>
+  html, body { margin: 0; background: #ece0cc; }
+  canvas { display: block; margin: 0 auto; max-width: 100%; height: auto !important; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="engine.js"></script>
+<script>
+const { hex, mix, AGENTS } = OFFICE;
+const UI = '"Trebuchet MS", "Segoe UI", system-ui, sans-serif';
+const INK = "#4a3728", SOFT = "#8a7560";
+const fmt = (n) => n.toLocaleString("en-US");
+const total = AGENTS.reduce((n, a) => n + a.tokens, 0);
+const interns = AGENTS.reduce((n, a) => n + a.interns, 0);
+const statusCss = { working: "#3fbf6f", waiting: "#f0a92e", sleeping: "#a4abb8" };
+const acctInk = (c) => (c === "#10a37f" ? "#0b8a6b" : c === "#e6be46" ? "#b88a12" : c === "#8b90a0" ? "#6f7484" : c);
+
+function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+
+const theme = {
+  W: 1600, H: 1000, tw: 112, ox: 739, oy: 318,
+  shade: { top: 1.05, y: 0.93, x: 0.82 },
+  shadowAlpha: 0.14,
+  robotScale: 1.2,
+  glow: false,
+  slab: [196, 160, 112],
+  floorBase: [222, 186, 138],
+  wall: { back: [244, 237, 223], left: [233, 224, 207], base: [196, 178, 148] },
+  desk: { top: [238, 211, 164], leg: [150, 112, 72], key: [96, 98, 108], mug: [244, 242, 236], stand: [74, 76, 86], monitor: [60, 64, 78] },
+  sofa: { base: [214, 134, 106], back: [196, 116, 90], arm: [226, 150, 124] },
+  robot: {
+    chassis: (col) => mix(col, [255, 255, 255], 0.12),
+    head: [244, 242, 236],
+    base: [88, 86, 96],
+    visor: "#27303f",
+    eye: (s) => ({ working: "#7ff0cf", waiting: "#ffd37a", sleeping: "#8f9bb3" }[s]),
+    plate: (col) => `rgb(${col.map((v) => Math.min(255, v * 1.15 | 0)).join(",")})`,
+    antenna: (col) => col,
+    glow: false,
+  },
+  statusColor: (s) => statusCss[s],
+
+  background(g) {
+    const c = g.ctx;
+    const gr = c.createLinearGradient(0, 0, 0, g.H);
+    gr.addColorStop(0, "#f7f0e4");
+    gr.addColorStop(1, "#ead9bf");
+    c.fillStyle = gr;
+    c.fillRect(0, 0, g.W, g.H);
+    const rg = c.createRadialGradient(g.W / 2, 460, 80, g.W / 2, 480, 760);
+    rg.addColorStop(0, "rgba(255,248,230,.85)");
+    rg.addColorStop(1, "rgba(255,248,230,0)");
+    c.fillStyle = rg;
+    c.fillRect(0, 0, g.W, g.H);
+    g.floorPlane(() => { // soft ground shadow hugging the room
+      c.beginPath();
+      c.ellipse(5.1, 4.1, 6.5, 5.4, 0, 0, 7);
+      c.fillStyle = "rgba(120,85,40,.09)";
+      c.fill();
+    });
+  },
+
+  floor(g, R) {
+    const c = g.ctx;
+    g.floorPlane(() => {
+      for (let y = 0, k = 0; y < R.d; y += 0.62, k++) {
+        c.fillStyle = k % 2 ? "rgba(255,255,255,.07)" : "rgba(120,80,30,.045)";
+        c.fillRect(0, y, R.w, Math.min(0.62, R.d - y));
+        c.fillStyle = "rgba(110,72,30,.20)";
+        c.fillRect(0, y, R.w, 0.014);
+        for (let x = (k * 1.7) % 3.1; x < R.w; x += 3.1) c.fillRect(x, y, 0.014, 0.62); // staggered plank ends
+      }
+      // lounge rug
+      c.fillStyle = "#f4e9d4"; rr(c, 6.1, 3.8, 3.9, 4.0, 0.18); c.fill();
+      c.fillStyle = "#5e9fa0"; rr(c, 6.27, 3.97, 3.56, 3.66, 0.12); c.fill();
+      c.strokeStyle = "rgba(255,255,255,.55)"; c.lineWidth = 0.05; rr(c, 6.5, 4.2, 3.1, 3.2, 0.08); c.stroke();
+    });
+  },
+
+  decor(g, R) {
+    const c = g.ctx;
+    // window on the back wall
+    g.box(3.0, -0.04, 1.0, 4.6, 0.04, 0.06, [255, 255, 255]);
+    g.planeX(3.0, 0, 2.9, () => {
+      const W = 460, H = 190;
+      const sky = c.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, "#86cdf6"); sky.addColorStop(1, "#e8f6ff");
+      c.fillStyle = sky; c.fillRect(0, 0, W, H);
+      const sun = c.createRadialGradient(360, 50, 4, 360, 50, 70);
+      sun.addColorStop(0, "rgba(255,244,190,1)"); sun.addColorStop(0.25, "rgba(255,240,170,.8)"); sun.addColorStop(1, "rgba(255,240,170,0)");
+      c.fillStyle = sun; c.fillRect(250, 0, 210, 150);
+      c.fillStyle = "rgba(255,255,255,.95)";
+      for (const [x, y, r] of [[90, 60, 30], [125, 52, 38], [165, 64, 28], [270, 108, 24], [300, 100, 32]]) { c.beginPath(); c.ellipse(x, y, r * 1.5, r * 0.7, 0, 0, 7); c.fill(); }
+      c.fillStyle = "#9bd0a0"; c.beginPath(); c.moveTo(0, H); c.lineTo(0, 145); c.quadraticCurveTo(110, 105, 230, 155); c.quadraticCurveTo(350, 115, 460, 145); c.lineTo(460, H); c.fill();
+      c.fillStyle = "#7fbc88"; c.beginPath(); c.moveTo(0, H); c.lineTo(0, 168); c.quadraticCurveTo(160, 135, 300, 172); c.quadraticCurveTo(400, 155, 460, 170); c.lineTo(460, H); c.fill();
+      c.strokeStyle = "#fff"; c.lineWidth = 10; c.strokeRect(0, 0, W, H);
+      c.lineWidth = 6; c.beginPath(); c.moveTo(W / 3, 0); c.lineTo(W / 3, H); c.moveTo((2 * W) / 3, 0); c.lineTo((2 * W) / 3, H); c.moveTo(0, H / 2); c.lineTo(W, H / 2); c.stroke();
+    });
+    // wall clock
+    g.planeX(1.55, 0, 2.9, () => {
+      c.fillStyle = "#fff"; c.beginPath(); c.arc(32, 32, 30, 0, 7); c.fill();
+      c.strokeStyle = SOFT; c.lineWidth = 4; c.stroke();
+      c.strokeStyle = INK; c.lineWidth = 3.5; c.lineCap = "round";
+      c.beginPath(); c.moveTo(32, 32); c.lineTo(32, 13); c.moveTo(32, 32); c.lineTo(46, 38); c.stroke();
+    });
+    // pennants
+    g.planeX(8.0, 0, 2.7, () => {
+      for (let i = 0; i < 7; i++) { c.fillStyle = ["#d97757", "#e6be46", "#5e9fa0", "#966edc", "#10a37f", "#508ceb", "#d97757"][i]; c.beginPath(); c.moveTo(i * 28, 0); c.lineTo(i * 28 + 24, 0); c.lineTo(i * 28 + 12, 34); c.fill(); }
+    });
+    // whiteboard on the left wall: today's totals, in the room instead of in a sidebar
+    g.planeY(0, 6.6, 2.8, () => {
+      c.fillStyle = "#c9b79b"; rr(c, -8, -8, 536, 196, 10); c.fill();
+      c.fillStyle = "#fbfaf6"; rr(c, 0, 0, 520, 180, 6); c.fill();
+      c.fillStyle = SOFT; c.font = `bold 15px ${UI}`; c.fillText("TODAY IN THE OFFICE", 22, 30);
+      c.fillStyle = INK; c.font = `bold 54px ${UI}`; c.fillText(fmt(total), 22, 92);
+      c.fillStyle = SOFT; c.font = `16px ${UI}`; c.fillText(`tokens  ·  ${AGENTS.length} agents  ·  ${interns} interns`, 24, 120);
+      const bars = AGENTS.map((a) => a.tokens), max = Math.max(...bars);
+      bars.forEach((v, i) => { c.fillStyle = AGENTS[i].color; rr(c, 300 + i * 29, 150 - (v / max) * 100, 20, (v / max) * 100, 4); c.fill(); });
+      c.fillStyle = "#e4dccb"; c.fillRect(290, 152, 215, 3);
+    });
+  },
+
+  props(g, R) {
+    const plant = (x, y, big = 1) => ({ depth: x + y + 0.4, draw: () => {
+      g.shadow(x + 0.2, y + 0.2, 0.42 * big, 0.3 * big, 0.14);
+      g.box(x, y, 0, 0.42, 0.42, 0.34 * big, [201, 118, 84]);
+      const greens = [[70, 150, 92], [88, 168, 104], [60, 134, 86]];
+      greens.forEach((c, i) => g.box(x - 0.1 * (3 - i) * 0.5 + 0.02, y - 0.08 + i * 0.03, 0.34 * big + i * 0.32 * big, 0.5 + 0.1 * (3 - i), 0.5 + 0.06 * (3 - i), 0.3 * big, c));
+    } });
+    return [plant(0.35, 0.35, 1.5), plant(9.4, 0.45, 1.1), plant(0.4, 7.1, 1.0), plant(9.4, 7.1, 1.2),
+      { depth: 7.9 + 5.6 + 0.6, draw: () => {
+        g.shadow(8.1, 5.85, 0.5, 0.4, 0.14);
+        g.box(7.75, 5.55, 0.0, 0.7, 0.55, 0.3, [240, 224, 190]);
+        g.box(7.98, 5.7, 0.3, 0.14, 0.14, 0.14, [255, 255, 255]);
+      } }];
+  },
+
+  nameplate(g, dx, dy, top, a) {
+    const c = g.ctx;
+    g.box(dx + 0.55, dy + 0.9, top + 0.08, 0.9, 0.05, 0.3, [250, 246, 236]);
+    g.planeX(dx + 0.55, dy + 0.95, top + 0.08 + 0.3, () => {
+      c.fillStyle = a.color; c.fillRect(0, 22, 90, 8);
+      c.fillStyle = INK; c.font = `bold 17px ${UI}`; c.textAlign = "center"; c.fillText(a.role, 45, 18);
+    });
+  },
+
+  // one short line: account and what it is doing. Details live in the roster dock.
+  bubble(g, [px, py], a) {
+    const c = g.ctx;
+    const txt = a.status === "sleeping" ? "zZ  asleep" : a.status === "working" ? "typing…" : "your turn";
+    c.save();
+    c.font = `bold 15px ${UI}`;
+    const acct = `@${a.acct}`;
+    const w = c.measureText(acct).width + (() => { c.font = `14px ${UI}`; return c.measureText(txt).width; })() + 54, h = 34;
+    const x = px - w / 2, y = py - h - 12;
+    c.shadowColor = "rgba(90,60,20,.22)"; c.shadowBlur = 12; c.shadowOffsetY = 3;
+    c.fillStyle = "#fffdf8"; rr(c, x, y, w, h, 17); c.fill();
+    c.beginPath(); c.moveTo(px - 7, y + h - 1); c.lineTo(px, y + h + 9); c.lineTo(px + 7, y + h - 1); c.fill();
+    c.shadowColor = "transparent";
+    c.strokeStyle = a.color; c.lineWidth = 2.5; rr(c, x, y, w, h, 17); c.stroke();
+    c.fillStyle = statusCss[a.status]; c.beginPath(); c.arc(x + 17, y + 17, 6, 0, 7); c.fill();
+    c.textAlign = "left"; c.font = `bold 15px ${UI}`; c.fillStyle = acctInk(a.color); c.fillText(acct, x + 30, y + 22);
+    const aw = c.measureText(acct).width;
+    c.font = `14px ${UI}`; c.fillStyle = SOFT; c.fillText(txt, x + 30 + aw + 10, y + 22);
+    c.restore();
+  },
+
+  overlay(g, agents) {
+    const c = g.ctx;
+    // header: wordmark with a little robot head
+    c.save();
+    c.fillStyle = "#f4efe6"; rr(c, 40, 28, 54, 50, 12); c.fill();
+    c.fillStyle = "#27303f"; rr(c, 49, 42, 36, 24, 6); c.fill();
+    c.strokeStyle = "#7ff0cf"; c.lineWidth = 3; c.lineCap = "round";
+    c.beginPath(); c.moveTo(57, 56); c.lineTo(61, 50); c.lineTo(65, 56); c.moveTo(70, 56); c.lineTo(74, 50); c.lineTo(78, 56); c.stroke();
+    c.strokeStyle = "#d97757"; c.beginPath(); c.moveTo(67, 42); c.lineTo(67, 32); c.stroke();
+    c.fillStyle = "#d97757"; c.beginPath(); c.arc(67, 30, 4, 0, 7); c.fill();
+    c.fillStyle = INK; c.font = `bold 30px ${UI}`; c.fillText("officebots", 108, 60);
+    c.fillStyle = SOFT; c.font = `15px ${UI}`; c.fillText("demo project", 110, 80);
+    const pill = `${agents.length} agents  ·  ${fmt(total)} tokens`;
+    c.font = `bold 16px ${UI}`;
+    const pw = c.measureText(pill).width + 40;
+    c.fillStyle = "rgba(255,253,248,.9)"; c.shadowColor = "rgba(90,60,20,.15)"; c.shadowBlur = 10;
+    rr(c, g.W - 40 - pw, 38, pw, 40, 20); c.fill();
+    c.shadowBlur = 0; c.fillStyle = INK; c.textAlign = "left"; c.fillText(pill, g.W - 20 - pw, 64);
+    c.restore();
+
+    // bottom roster dock
+    const x0 = 40, y0 = 890, w = g.W - 80, h = 90;
+    c.save();
+    c.shadowColor = "rgba(90,60,20,.20)"; c.shadowBlur = 24; c.shadowOffsetY = 6;
+    c.fillStyle = "#fffdf8"; rr(c, x0, y0, w, h, 22); c.fill();
+    c.restore();
+    const cw = (w - 40) / agents.length;
+    agents.forEach((a, i) => {
+      const x = x0 + 20 + i * cw;
+      c.fillStyle = a.color; rr(c, x, y0 + 16, 6, 58, 3); c.fill();
+      c.fillStyle = statusCss[a.status]; c.beginPath(); c.arc(x + 22, y0 + 30, 5, 0, 7); c.fill();
+      c.fillStyle = INK; c.font = `bold 16px ${UI}`; c.textAlign = "left"; c.fillText(`${a.role} `, x + 34, y0 + 35);
+      const wr = c.measureText(`${a.role} `).width;
+      c.fillStyle = acctInk(a.color); c.fillText(`@${a.acct}`, x + 34 + wr, y0 + 35);
+      c.fillStyle = SOFT; c.font = `13px ${UI}`; c.fillText(a.model, x + 16, y0 + 55);
+      c.fillStyle = INK; c.font = `bold 15px ${UI}`; c.fillText(`${fmt(a.tokens)} tokens`, x + 16, y0 + 74);
+    });
+    c.fillStyle = "rgba(74,55,40,.5)"; c.font = `12px ${UI}`; c.textAlign = "right";
+    c.fillText("MOCKUP A · DAYLIGHT STUDIO · demo data", g.W - 40, 994);
+  },
+};
+OFFICE.render(document.getElementById("c"), theme);
+</script>
+</body>
+</html>

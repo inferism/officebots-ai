@@ -48,7 +48,7 @@ officebots accounts                          # ids seen in the last 7 days, with
 officebots accounts name acct_3f9a1c07 work  # set a nickname (an empty nickname removes it)
 ```
 
-A nickname shows as `@work` in the label and the sidebar, and the character wears a cap in that account's accent color. Without a nickname, accounts are told apart as `@account 1`, `@account 2` (only shown when there is more than one).
+A nickname shows as `@work` on the speech bubble and in the roster, and the tag takes that account's accent color on the robot's speech bubble and its roster chip. Without a nickname, accounts are told apart as `@account 1`, `@account 2` (only shown when there is more than one).
 
 ## How Claude Code sessions get an account
 
