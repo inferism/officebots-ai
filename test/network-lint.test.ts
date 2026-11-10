@@ -19,24 +19,25 @@ const FORBIDDEN: [string, RegExp][] = [
   ["WebSocket client", /new\s+WebSocket\s*\(/],
   ["http client call", /\bhttp\.(?:request|get)\s*\(|\b(?:request|get)\s*\(\s*\{\s*host/],
 ];
-const ALLOWED_PROBE = "server/probe.ts";
+const ALLOWED_LOOPBACK = "server/loopback.ts";
 
 describe("network lint", () => {
-  it("src/ has no outbound network calls except the loopback probe", () => {
+  it("src/ has no outbound network calls except the loopback helper", () => {
     const hits: string[] = [];
     for (const f of walk(src)) {
       const rel = f.slice(src.length + 1).replaceAll("\\", "/");
-      if (rel === ALLOWED_PROBE) continue;
+      if (rel === ALLOWED_LOOPBACK) continue;
       const text = readFileSync(f, "utf8");
       for (const [name, re] of FORBIDDEN) if (re.test(text)) hits.push(`${rel}: ${name}`);
     }
     expect(hits).toEqual([]);
   });
 
-  it("the probe only ever targets 127.0.0.1", () => {
-    const text = readFileSync(join(src, "server", "probe.ts"), "utf8");
-    expect(text).toContain('host: "127.0.0.1"');
-    expect(text.match(/host:/g)).toHaveLength(1);
+  it("the loopback helper only ever targets 127.0.0.1", () => {
+    const text = readFileSync(join(src, "server", "loopback.ts"), "utf8");
+    const hosts = text.match(/host: [^,]+/g) ?? [];
+    expect(hosts.length).toBeGreaterThanOrEqual(2); // health check and event delivery
+    expect(hosts.every((h) => h === 'host: "127.0.0.1"')).toBe(true);
   });
 
   it("servers bind to loopback only", () => {

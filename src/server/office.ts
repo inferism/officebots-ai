@@ -8,7 +8,7 @@ import { createProjectResolver, projectKey } from "../core/project.js";
 import type { OfficeEvent } from "../core/schema.js";
 import { createIngest, type Ingest } from "../watcher/ingest.js";
 import { createHttpServer } from "./http.js";
-import { probeOffice } from "./probe.js";
+import { findOfficePort } from "./loopback.js";
 import { createRoom, type Room } from "./room.js";
 import { attachWs } from "./ws.js";
 
@@ -47,36 +47,20 @@ export class AlreadyRunningError extends Error {
 
 const runFilePath = (root: string) => join(root, ".officebots", ".state", "run.json");
 
-function pidAlive(pid: unknown): boolean {
-  if (typeof pid !== "number") return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function startOffice(opts: OfficeOptions): Promise<Office> {
   const now = opts.now ?? Date.now;
   const runFile = runFilePath(opts.root);
   const live = opts.logSources !== undefined;
 
-  if (live && existsSync(runFile)) {
-    try {
-      const prev = JSON.parse(readFileSync(runFile, "utf8"));
-      if (pidAlive(prev.pid) && typeof prev.port === "number" && (await probeOffice(prev.port))) {
-        throw new AlreadyRunningError(`http://127.0.0.1:${prev.port}`);
-      }
-    } catch (e) {
-      if (e instanceof AlreadyRunningError) throw e;
-    }
+  if (live) {
+    const running = await findOfficePort(opts.root);
+    if (running !== null) throw new AlreadyRunningError(`http://127.0.0.1:${running}`);
   }
 
   const key = projectKey(opts.root);
   const room = createRoom({ key, name: basename(opts.root) }, { idleAfterSec: opts.idleAfterSec });
   let port = 0;
-  const server = createHttpServer({ uiDir: opts.uiDir, getPort: () => port, project: { key } });
+  const server = createHttpServer({ uiDir: opts.uiDir, getPort: () => port, project: { key }, onEvents: (events) => apply(events) });
   let lastSent = "";
   const snapshotJson = () => JSON.stringify({ type: "room", room: room.snapshot(now()) });
   const ws = attachWs(server, () => port, (send) => send(snapshotJson()));

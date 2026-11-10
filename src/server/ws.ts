@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
-import { hostAllowed } from "./http.js";
+import { hostAllowed, originAllowed } from "./http.js";
 
 /**
  * Read-only broadcast channel at /ws. Browsers always send Origin, so a page from any other origin is
@@ -13,9 +13,7 @@ export function attachWs(server: Server, getPort: () => number, onConnect: (send
     maxPayload: 1024,
     verifyClient: ({ origin, req }, done) => {
       const port = getPort();
-      const ok =
-        hostAllowed(req, port) &&
-        (origin === undefined || origin === `http://127.0.0.1:${port}` || origin === `http://localhost:${port}`);
+      const ok = hostAllowed(req, port) && (origin === undefined || originAllowed(origin, port));
       done(ok, 403, "forbidden");
     },
   });

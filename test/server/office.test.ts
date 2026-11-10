@@ -147,7 +147,7 @@ describe("office server", () => {
     good.close();
 
     const post = await new Promise<number>((res) => {
-      const r = request({ host: "127.0.0.1", port: office.port, path: "/events", method: "POST" }, (x) => {
+      const r = request({ host: "127.0.0.1", port: office.port, path: "/health", method: "POST" }, (x) => {
         x.resume();
         res(x.statusCode!);
       });
