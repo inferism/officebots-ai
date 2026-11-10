@@ -50,10 +50,10 @@ function pidAlive(pid: unknown): boolean {
 }
 
 /** Port of this project's running office, found through .officebots/.state/run.json, or null. */
-export async function findOfficePort(root: string): Promise<number | null> {
+export async function findOfficePort(root: string, timeoutMs = 500): Promise<number | null> {
   try {
     const run = JSON.parse(readFileSync(join(root, ".officebots", ".state", "run.json"), "utf8"));
-    if (typeof run.port === "number" && pidAlive(run.pid) && (await probeOffice(run.port))) return run.port;
+    if (typeof run.port === "number" && pidAlive(run.pid) && (await probeOffice(run.port, timeoutMs))) return run.port;
   } catch {
     // no run file, or unreadable
   }

@@ -120,6 +120,7 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
     const ignore = join(opts.root, ".officebots", ".gitignore");
     if (!existsSync(ignore)) writeFileSync(ignore, ".state/\n");
     writeFileSync(runFile, JSON.stringify({ port, pid: process.pid, url, startedAt: new Date().toISOString() }));
+    rmSync(join(opts.root, ".officebots", ".state", "start.lock"), { force: true }); // up now: release the start lock
   }
 
   // Role names, rules and nicknames: read now and again whenever either file changes, no restart needed.
