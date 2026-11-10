@@ -86,7 +86,7 @@ Codex also has a `hooks` section and `notify` in `~/.codex/config.toml`. These a
 | Runtime deps | `ws` (WebSocket server), `three`. Nothing else at runtime. | Small surface for a tool that reads private logs. HTTP, file watching and zstd come from Node stdlib. |
 | Build / test | `tsup` (CLI + office server), `vite` (UI), `vitest` (tests) | Fast, standard, dev-only. |
 | File watching | `fs.watch(root, {recursive: true})` + byte-offset tailing + debounce | Satisfies "OS events, not polling". Works on Windows/macOS and Linux (Node ≥ 20). One slow reconcile scan runs only at startup and on watcher error. |
-| Transport | **One office server per project**, on `127.0.0.1` and a free port picked at start: static UI + `POST /events` + WebSocket `/ws` | Each project gets its own office. The port and process id are recorded in `officebots-out/.state/run.json` inside the project, so the hook, `ping` and `/officebots` can find a running office. Bound to loopback only. |
+| Transport | **One office server per project**, on `127.0.0.1` and a free port picked at start: static UI + `POST /events` + WebSocket `/ws` | Each project gets its own office. The port and process id are recorded in `.officebots/.state/run.json` inside the project, so the hook, `ping` and `/officebots` can find a running office. Bound to loopback only. |
 | Rendering | **Three.js, `OrthographicCamera` at isometric angles, flat-shaded box geometry (voxel look)** | See below. |
 | Packaging | **Single npm package `officebots`** (CLI + office server + prebuilt UI) **plus a skill installed by `officebots setup`** | See §6. No monorepo in v1. |
 
@@ -206,8 +206,8 @@ officebots-ai/
 ├─ tsconfig.json  vite.config.ts  vitest.config.ts
 ├─ PLAN.md  README.md  LICENSE
 │
-│  # What /officebots creates inside a USER's project (not this repo), like graphify's graphify-out/:
-│  #   officebots-out/
+│  # What /officebots creates inside a USER's project (not this repo):
+│  #   .officebots/
 │  #   ├─ office.json        role names and colors; marks "this project has an office"; safe to commit
 │  #   ├─ .gitignore         ignores .state/
 │  #   └─ .state/run.json    port + process id of the running office (local only, never committed)
@@ -222,7 +222,7 @@ officebots-ai/
 │  │  ├─ roles.ts            # default roles + config overrides
 │  │  ├─ colors.ts           # model/provider palette + hash fallback
 │  │  ├─ project.ts          # cwd → project key (git common dir, cached)
-│  │  └─ config.ts           # load/validate ~/.config/officebots/config.json + officebots-out/office.json
+│  │  └─ config.ts           # load/validate ~/.config/officebots/config.json + .officebots/office.json
 │  ├─ adapters/
 │  │  ├─ types.ts            # Adapter interface: roots(), match(path), parse(lines, ctx) → OfficeEvent[]
 │  │  ├─ claude-code/        # parse.ts (pure), files.ts (layout), account.ts
@@ -295,17 +295,17 @@ Each phase ends with a commit and push and has a "done" check you can run yourse
 
 ### v0.7: Settings: role names, account nicknames, colors
 - Two settings files (explained in §8):
-  - **Office folder** `officebots-out/` in the project, created by `/officebots` the same way graphify creates `graphify-out/`. `office.json` in it marks "this project has an office" and holds role names and colors; it's safe to commit and share. Runtime files go in `officebots-out/.state/`, which the folder's own `.gitignore` excludes.
+  - **Office folder** `.officebots/` in the project, created by `/officebots` as a hidden folder, like `.vscode/` or `.github/`. `office.json` in it marks "this project has an office" and holds role names and colors; it's safe to commit and share. Runtime files go in `.officebots/.state/`, which the folder's own `.gitignore` excludes.
   - **Personal file** `~/.config/officebots/config.json`. It holds account nicknames ("work", "personal") and the hashing salt. Never inside the project.
 - `officebots accounts` lists the hashed account ids seen, with tool and last-seen time, so you can nickname them without ever seeing emails.
 - Claude Code account resolution, in order: (1) session→account record written by the SessionStart hook; (2) `CLAUDE_CONFIG_DIR` root → account captured when that root was first seen; (3) currently logged-in account; (4) `null`.
 - Account accent: a colored cap/badge on the character plus an `@nickname` tag in the label.
-- **Done when:** two Claude Code sessions on two accounts (two config dirs) using the same model show as **two** characters with different `@nickname` tags and accent colors. Editing role names in `officebots-out/office.json` re-labels them live without a restart.
+- **Done when:** two Claude Code sessions on two accounts (two config dirs) using the same model show as **two** characters with different `@nickname` tags and accent colors. Editing role names in `.officebots/office.json` re-labels them live without a restart.
 
 ### v1.0: The skill, auto-start and packaging
-- `/officebots` skill (the main way in): run inside a project, it creates `officebots-out/` if missing, starts that project's office if it isn't running, and opens its URL.
+- `/officebots` skill (the main way in): run inside a project, it creates `.officebots/` if missing, starts that project's office if it isn't running, and opens its URL.
 - `officebots setup`: installs the skill to `~/.claude/skills/officebots/`, and **prints a unified diff** of the proposed `~/.claude/settings.json` change (a `SessionStart` hook running `officebots hook claude-session-start`). It writes a timestamped backup, asks `y/N`, and only then writes. `--dry-run` never writes. `officebots uninstall` removes exactly what setup added and restores from backup if the file is otherwise unchanged.
-- The hook does nothing in projects without `officebots-out/office.json`. In projects with one, it starts the office if needed. It finishes in < 150 ms, never fails the session (catches everything, exits 0), and spawns the office detached.
+- The hook does nothing in projects without `.officebots/office.json`. In projects with one, it starts the office if needed. It finishes in < 150 ms, never fails the session (catches everything, exits 0), and spawns the office detached.
 - Optional: the same diff/backup/approve flow for a Codex hook in `config.toml`.
 - Publish to npm.
 - **Done when:** on a clean machine, `npm i -g officebots && officebots setup` (answer y) shows the diff and creates the backup. Running `/officebots` in a project opens its office. After that, just opening Claude Code in that project starts the office; opening it in a project without an office starts nothing. `officebots uninstall` leaves `settings.json` byte-identical to the backup.
@@ -314,7 +314,7 @@ Each phase ends with a commit and push and has a "done" check you can run yourse
 - More adapters as their log formats are verified on a real machine (Gemini CLI, Cursor, others), each starting from a `docs/log-formats.md` entry.
 - Claude Code plugin marketplace packaging (`.claude-plugin/plugin.json` + `hooks/hooks.json` + `skills/`), so the hook registers through the plugin install prompt instead of editing settings.
 - Persisted tail offsets, so startup is instant on projects with large logs.
-- Smarter default role names (for example from what the agent is doing or how the user named the subagent). v1 ships simple defaults that each project can rename in `officebots-out/office.json`.
+- Smarter default role names (for example from what the agent is doing or how the user named the subagent). v1 ships simple defaults that each project can rename in `.officebots/office.json`.
 
 ### Later (out of scope for v1): team / other-machine sync
 The design leaves room for it without changes to adapters:
@@ -356,7 +356,7 @@ description: "Create or open a live office for this project that shows which AI 
 2. **We can tell a second AI tool apart in the same room.** This is the core promise. *Test:* v0.5 is moved early on purpose: Claude Code and Codex working in this repo at the same time must give two characters.
 3. **We can attribute a Claude Code session to an account.** Logs don't contain one. *Test (spike, before v0.7, about half a day):* log in two accounts via two `CLAUDE_CONFIG_DIR`s, confirm each gets its own `projects/` root, and confirm a SessionStart hook receives the session id and can read the active account. If neither holds, fall back to "account per config root" and ask users to nickname roots.
 4. **Recursive `fs.watch` is reliable enough without polling** (Windows, macOS, Linux, WSL, files held open by the writer, bursts of appends). *Test:* in v0.3, a stress test where `fake-writer` appends 10k lines in bursts across 50 files, on Windows and one Unix. Assert zero missed or duplicated events and handle torn last lines. If a platform drops events, add a reconcile scan on watcher error only.
-5. **"Project = git repo" matches what users mean.** cwd changes mid-session, subfolders, git worktrees, the desktop app's scratch dirs. *Test:* fixtures for each case. Projects are keyed by `git rev-parse --git-common-dir`, so worktrees and subfolders count as the same project (decided); folders without git fall back to the folder holding `officebots-out/`.
+5. **"Project = git repo" matches what users mean.** cwd changes mid-session, subfolders, git worktrees, the desktop app's scratch dirs. *Test:* fixtures for each case. Projects are keyed by `git rev-parse --git-common-dir`, so worktrees and subfolders count as the same project (decided); folders without git fall back to the folder holding `.officebots/`.
 6. **Codex compression/rename and forked-history semantics are as observed.** *Test:* the v0.5 fixtures. Before coding, watch one live thread on this machine until it compresses and confirm the threadId matches.
 7. **The SessionStart hook can be fast and harmless on Windows** (detached spawn, no console window flash, never blocks startup). *Test:* a spike hook that spawns a detached `node` on Windows and macOS. Measure with 20 rapid session starts.
 8. **Three.js plus HTML labels stays smooth with 40+ characters.** *Test:* `officebots demo --agents 80` in v0.4. If labels cost too much, render labels only for working/hovered characters.
@@ -371,8 +371,8 @@ description: "Create or open a live office for this project that shows which AI 
 | 2 | Live or history | **Live.** Agents not being used fall **asleep** at their desk; long sleepers move to the lounge or fade. No all-time history. |
 | 3 | One server or one per project | **One office per project**, created with `/officebots` in that project. Each runs on its own free port. |
 | 4 | Worktrees and subfolders | **Same project** as the main checkout. |
-| 5 | Where settings live | **A project folder plus one personal file.** `/officebots` creates `officebots-out/` in the project (like graphify's `graphify-out/`). Its `office.json` holds role names and colors and is fine to commit, so a team sees the same labels; runtime files stay in its git-ignored `.state/`. Account nicknames ("work", "personal") are personal, so they live in your user folder (`~/.config/officebots/config.json`) and never end up in a public repo. |
-| 6 | Default role names | Defaults below, changeable in `officebots-out/office.json`: Claude Code main → **Lead**, `Explore` subagent → **Explorer**, `Plan` → **Planner**, other subagents → **Assistant**, Codex main → **Coder**, anything unknown → **Agent**. |
+| 5 | Where settings live | **A project folder plus one personal file.** `/officebots` creates `.officebots/` in the project (a hidden folder named after the tool, so it won't clash with other tools and is clearly safe to delete). Its `office.json` holds role names and colors and is fine to commit, so a team sees the same labels; runtime files stay in its git-ignored `.state/`. Account nicknames ("work", "personal") are personal, so they live in your user folder (`~/.config/officebots/config.json`) and never end up in a public repo. |
+| 6 | Default role names | Defaults below, changeable in `.officebots/office.json`: Claude Code main → **Lead**, `Explore` subagent → **Explorer**, `Plan` → **Planner**, other subagents → **Assistant**, Codex main → **Coder**, anything unknown → **Agent**. |
 | 7 | npm package name | **`officebots`** if it's free on npm at publish time (checked in v1.0, since checking needs the network). Otherwise `@inferism/officebots`. This is only the name in `npm i -g …`; the command stays `officebots` either way. |
 | 8 | Mockup file | Committed at `docs/mockup/office-mockup.html`. |
 | 9 | Codex timing | **Before v1.0** (v0.5), right after the office renders, to prove a second AI is detected. |
