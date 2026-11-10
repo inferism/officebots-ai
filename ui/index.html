@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<main>
+<div id="app">
   <section id="stage">
     <div id="labels"></div>
     <div id="tip" hidden></div>
@@ -15,8 +15,21 @@
     <div id="status"></div>
     <div id="debug" hidden></div>
   </section>
-  <aside id="side"></aside>
-</main>
+  <header id="top">
+    <div id="brand">
+      <svg id="logo" viewBox="0 0 54 50" width="50" height="46" aria-hidden="true">
+        <rect x="1" y="12" width="52" height="36" rx="11" fill="#f4efe6"/>
+        <rect x="9" y="19" width="36" height="22" rx="6" fill="#27303f"/>
+        <path d="M16 33 L20 27 L24 33 M30 33 L34 27 L38 33" fill="none" stroke="#7ff0cf" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M27 12 V4" stroke="#d97757" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="27" cy="4" r="3.6" fill="#d97757"/>
+      </svg>
+      <div><b id="wordmark">officebots</b><small id="project"></small></div>
+    </div>
+    <div id="pill"><span id="phase"></span><span id="counts"></span></div>
+  </header>
+  <footer id="dock"><div id="chips"></div></footer>
+</div>
 <script src="/app.js"></script>
 </body>
 </html>
