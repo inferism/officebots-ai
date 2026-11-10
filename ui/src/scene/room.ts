@@ -1,33 +1,27 @@
 import * as THREE from "three";
 import type { Character, Room } from "../../../src/server/room.js";
-import { IsoCamera } from "./camera.js";
+import { IsoCamera, type Insets } from "./camera.js";
 import { Station } from "./character.js";
+import { Environment } from "./env.js";
 import { Interns } from "./interns.js";
 import { Labels } from "./labels.js";
-import { computeLayout, deskPosition, type Layout, roomSize, seatPosition } from "./layout.js";
-import { box, COLORS, mat } from "./palette.js";
+import { computeLayout, deskPosition, type Layout, loungeRect, roomSize, seatPosition } from "./layout.js";
+import { atMinutes, type TimeInfo } from "./timeofday.js";
 
 export const MAX_DESKS = 12;
 export const LOUNGE_CAP = 8;
-const WALL_H = 3.4;
-
-export type SceneInfo = { layout: Layout; fps: number; drawCalls: number };
 
 export class OfficeScene {
   readonly renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private cam = new IsoCamera();
+  private env: Environment;
   private stations = new Map<string, Station>();
   private interns: Interns;
   private labels: Labels;
   private layout!: Layout;
-  private size = { w: 5, d: 4.4 };
-  private sizeTarget = { w: 5, d: 4.4 };
-  private floor: THREE.Mesh;
-  private slab: THREE.Mesh;
-  private floorTex: THREE.CanvasTexture;
-  private wallBack: THREE.Mesh;
-  private wallLeft: THREE.Mesh;
+  private size = { w: 6, d: 6 };
+  private sizeTarget = { w: 6, d: 6 };
   private raycaster = new THREE.Raycaster();
   private mouse: { x: number; y: number } | null = null;
   private hovered: string | null = null;
@@ -36,46 +30,31 @@ export class OfficeScene {
   private elapsed = 0;
   private frames = 0;
   private fpsStart = performance.now();
+  private timeAt = -1e9;
+  private timeKey = NaN;
+  private info!: TimeInfo;
   fps = 0;
+  debug = "";
 
+  /**
+   * @param clock minutes since local midnight, read a few times a second (the real clock, or a preview clock)
+   * @param onTime called when the time-of-day look changes, so the page can restyle itself too
+   */
   constructor(
     private canvasHost: HTMLElement,
     labelRoot: HTMLElement,
     private tip: HTMLElement,
     private onLayout: (l: Layout) => void,
+    private clock: () => number,
+    private onTime: (info: TimeInfo) => void,
   ) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-    this.renderer.setClearColor(COLORS.bg);
+    this.renderer.setClearColor(0x000000, 0); // the page's own background shows through
     canvasHost.append(this.renderer.domElement);
     this.labels = new Labels(labelRoot);
     this.interns = new Interns(this.scene);
-
-    this.scene.add(new THREE.AmbientLight(0xffffff, 1.55));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-    sun.position.set(-6, 14, 9);
-    this.scene.add(sun);
-
-    // checkerboard floor
-    const c = document.createElement("canvas");
-    c.width = c.height = 2;
-    const g = c.getContext("2d")!;
-    g.fillStyle = "#" + COLORS.floorA.toString(16).padStart(6, "0");
-    g.fillRect(0, 0, 2, 2);
-    g.fillStyle = "#" + COLORS.floorB.toString(16).padStart(6, "0");
-    g.fillRect(0, 0, 1, 1);
-    g.fillRect(1, 1, 1, 1);
-    this.floorTex = new THREE.CanvasTexture(c);
-    this.floorTex.magFilter = this.floorTex.minFilter = THREE.NearestFilter;
-    this.floorTex.wrapS = this.floorTex.wrapT = THREE.RepeatWrapping;
-    this.floorTex.colorSpace = THREE.SRGBColorSpace;
-    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshLambertMaterial({ map: this.floorTex }));
-    this.floor.rotation.x = -Math.PI / 2;
-    this.wallBack = box(1, WALL_H, 0.3, mat(COLORS.wallRight));
-    this.wallLeft = box(0.3, WALL_H, 1, mat(COLORS.wallLeft));
-    // a slab under the floor, so its front edges have thickness and it reads as a solid floor, not a sheet
-    this.slab = box(1, 0.5, 1, mat(COLORS.slab));
-    this.scene.add(this.floor, this.slab, this.wallBack, this.wallLeft);
+    this.env = new Environment(this.scene);
 
     addEventListener("resize", () => this.resize());
     this.renderer.domElement.addEventListener("pointermove", (e) => {
@@ -83,10 +62,17 @@ export class OfficeScene {
       this.mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
     });
     this.renderer.domElement.addEventListener("pointerleave", () => (this.mouse = null));
+    this.updateTime(true);
     this.resize();
     this.applyLayout(computeLayout([], undefined, { maxDesks: MAX_DESKS, loungeCap: LOUNGE_CAP }));
     this.cam.fit(this.sizeTarget.w, this.sizeTarget.d, true);
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /** Space covered by the header and dock, so the room is centered in what is left. */
+  setInsets(i: Insets): void {
+    this.cam.setInsets(i);
+    this.cam.fit(this.sizeTarget.w, this.sizeTarget.d);
   }
 
   private resize(): void {
@@ -95,6 +81,21 @@ export class OfficeScene {
     this.renderer.setSize(w, h);
     this.cam.resize(w, h);
     this.cam.fit(this.sizeTarget.w, this.sizeTarget.d, true);
+  }
+
+  /** Re-read the clock a few times a second and restyle only when the look has visibly moved on. */
+  private updateTime(force = false): void {
+    const now = performance.now();
+    if (!force && now - this.timeAt < 250) return;
+    this.timeAt = now;
+    const minutes = this.clock();
+    const key = Math.round(minutes * 4);
+    if (!force && key === this.timeKey) return;
+    this.timeKey = key;
+    this.info = atMinutes(minutes);
+    this.env.apply(this.info);
+    for (const st of this.stations.values()) st.applyEnv(this.info.palette);
+    this.onTime(this.info);
   }
 
   /** New snapshot from the server. */
@@ -108,6 +109,7 @@ export class OfficeScene {
       let st = this.stations.get(key);
       if (!st) {
         st = new Station(data);
+        st.applyEnv(this.info.palette);
         const lounge = layout.lounge.has(key);
         const p = lounge ? seatPosition(layout.lounge.get(key)!, layout.cols) : deskPosition(layout.desks.get(key)!, layout.cols);
         st.group.position.set(p.x, 0, p.z);
@@ -119,6 +121,7 @@ export class OfficeScene {
     }
     for (const [key, st] of this.stations) if (!present.has(key)) st.fading = true;
     this.applyLayout(layout);
+    this.env.setTotals(room);
     this.labels.sync(this.stations);
     if (this.first && room.characters.length > 0) {
       this.first = false;
@@ -148,21 +151,13 @@ export class OfficeScene {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     this.elapsed += dt;
+    this.updateTime();
 
     // ease the room size, then the camera
     const k = 1 - Math.exp(-dt * 4);
     this.size.w += (this.sizeTarget.w - this.size.w) * k;
     this.size.d += (this.sizeTarget.d - this.size.d) * k;
-    const { w, d } = this.size;
-    this.floor.scale.set(w, d, 1);
-    this.floor.position.set(w / 2, 0, d / 2);
-    this.floorTex.repeat.set(w / 2, d / 2);
-    this.slab.scale.set(w + 0.3, 0.5, d + 0.3);
-    this.slab.position.set((w - 0.3) / 2, -0.27, (d - 0.3) / 2);
-    this.wallBack.scale.set(w, WALL_H, 0.3);
-    this.wallBack.position.set(w / 2, WALL_H / 2, -0.15);
-    this.wallLeft.scale.set(0.3, WALL_H, d);
-    this.wallLeft.position.set(-0.15, WALL_H / 2, d / 2);
+    this.env.layout(this.size.w, this.size.d, loungeRect(this.layout, this.size.w));
     this.cam.update(dt);
 
     for (const [key, st] of this.stations) {
@@ -175,7 +170,7 @@ export class OfficeScene {
     }
     const internCount = this.interns.update(this.stations.values(), this.elapsed);
     this.pick();
-    this.labels.position(this.stations, this.cam.camera, this.canvasHost.clientWidth, this.canvasHost.clientHeight, this.hovered, Math.max(0.55, Math.min(1, this.cam.pxPerUnit(this.canvasHost.clientHeight) / 30)));
+    this.labels.position(this.stations, this.cam.camera, this.canvasHost.clientWidth, this.canvasHost.clientHeight, this.hovered, Math.max(0.6, Math.min(1, this.cam.pxPerUnit(this.canvasHost.clientHeight) / 30)));
     this.renderer.render(this.scene, this.cam.camera);
 
     this.frames++;
@@ -183,12 +178,10 @@ export class OfficeScene {
       this.fps = (this.frames * 1000) / (now - this.fpsStart);
       this.frames = 0;
       this.fpsStart = now;
-      this.debug = `${this.fps.toFixed(0)} fps · ${this.stations.size} chars · ${internCount} interns · ${this.renderer.info.render.calls} draws`;
+      this.debug = `${this.fps.toFixed(0)} fps · ${this.stations.size} bots · ${internCount} interns · ${this.renderer.info.render.calls} draws · ${this.info.label} ${Math.floor(this.info.hours)}:${String(Math.floor((this.info.hours % 1) * 60)).padStart(2, "0")}`;
     }
     requestAnimationFrame((t) => this.frame(t));
   }
-
-  debug = "";
 
   /** Hover: raycast against visible parts of each station and show a tooltip. */
   private pick(): void {

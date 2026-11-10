@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeLayout, deskPosition, INTERN_REACH, type LayoutChar, roomSize, seatPosition } from "../../ui/src/scene/layout.js";
+import { computeLayout, deskPosition, INTERN_REACH, type LayoutChar, loungeRect, roomSize, seatPosition } from "../../ui/src/scene/layout.js";
 
 const T = Date.parse("2026-11-10T10:00:00.000Z");
 const ch = (key: string, status: LayoutChar["status"], agoSec = 0): LayoutChar => ({
@@ -87,6 +87,26 @@ describe("computeLayout", () => {
         }
       }
     }
+  });
+
+  it("the lounge rug covers every sofa seat and stays inside the room", () => {
+    for (const sleepers of [1, 3, 8]) {
+      const chars = [...Array.from({ length: 12 }, (_, i) => ch(`a${i}`, "working")), ...Array.from({ length: sleepers }, (_, i) => ch(`s${i}`, "sleeping", 100 + i))];
+      const l = computeLayout(chars, undefined, OPTS);
+      const { w, d } = roomSize(l);
+      const rug = loungeRect(l, w)!;
+      expect(rug).not.toBeNull();
+      expect(rug.x1).toBeLessThanOrEqual(w);
+      expect(rug.z1).toBeLessThanOrEqual(d);
+      for (const seat of l.lounge.values()) {
+        const p = seatPosition(seat, l.cols);
+        expect(p.x - 0.8).toBeGreaterThanOrEqual(rug.x0 - 0.01); // the sofa's left edge
+        expect(p.x + 0.8).toBeLessThanOrEqual(rug.x1 + 0.05); // and right edge
+        expect(p.z).toBeGreaterThan(rug.z0);
+        expect(p.z).toBeLessThan(rug.z1);
+      }
+    }
+    expect(loungeRect(computeLayout([ch("a", "working")], undefined, OPTS), 8)).toBeNull();
   });
 
   it("handles an empty office", () => {

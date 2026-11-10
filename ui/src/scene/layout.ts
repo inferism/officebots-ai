@@ -92,3 +92,16 @@ export function roomSize(l: Layout): { w: number; d: number } {
   const loungeW = LOUNGE_COLS * SEAT_PITCH + 2;
   return { w: wholeTiles(deskW + 1.5 + loungeW), d: Math.max(deskD, wholeTiles(seatRows * SEAT_PITCH + 3)) };
 }
+
+/** The rug under the lounge sofas, in world units, or null when there is no lounge. */
+export function loungeRect(l: Layout, roomW: number): { x0: number; x1: number; z0: number; z1: number } | null {
+  if (l.lounge.size === 0) return null;
+  const left = l.cols * PITCH_X + 1.5;
+  const seatRows = Math.ceil(l.lounge.size / LOUNGE_COLS);
+  return {
+    x0: left - 0.1,
+    x1: Math.min(roomW - 0.1, left + 4.3),
+    z0: 1.1,
+    z1: 2.0 + (seatRows - 1) * SEAT_PITCH + 1.4,
+  };
+}

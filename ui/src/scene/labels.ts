@@ -3,9 +3,11 @@ import type { Station } from "./character.js";
 
 const LABEL_CAP = 40; // hard cap; labels that would cover a busier character's label are skipped as well
 
-type Entry = { el: HTMLDivElement; role: HTMLElement; acct: HTMLElement; sub: HTMLElement; dot: HTMLElement; badge: HTMLElement; zz: HTMLElement; shown: boolean; w: number; h: number };
+type Entry = { el: HTMLDivElement; name: HTMLElement; state: HTMLElement; dot: HTMLElement; badge: HTMLElement; shown: boolean; w: number; h: number };
 
-/** HTML labels projected from 3D points, so text stays crisp and the count can be capped. */
+const STATE_TEXT = { working: "typing…", waiting: "your turn", sleeping: "zZ" } as const;
+
+/** Small speech bubbles above each robot, projected from 3D so the text stays crisp. */
 export class Labels {
   private entries = new Map<string, Entry>();
   private v = new THREE.Vector3();
@@ -22,8 +24,7 @@ export class Labels {
       }
     }
     const rank = (s: Station) => (s.data.status === "working" ? 0 : s.data.status === "waiting" ? 1 : 2) + (s.mode === "lounge" ? 3 : 0);
-    const order = [...stations.values()].filter((s) => !s.fading).sort((a, b) => rank(a) - rank(b));
-    this.order = order.map((s) => s.key);
+    this.order = [...stations.values()].filter((s) => !s.fading).sort((a, b) => rank(a) - rank(b)).map((s) => s.key);
 
     for (const st of stations.values()) {
       let e = this.entries.get(st.key);
@@ -32,18 +33,16 @@ export class Labels {
         this.entries.set(st.key, e);
       }
       const c = st.data;
-      e.role.textContent = c.role;
-      e.acct.textContent = c.accountAlias ? `@${c.accountAlias}` : "";
-      e.acct.hidden = !c.accountAlias;
-      e.acct.style.color = c.accent; // the account's accent color
-      e.sub.textContent = c.model.length > 24 ? c.model.slice(0, 23) + "…" : c.model;
+      // the account if it has a name, otherwise the role; the nameplate on the desk always shows the role
+      e.name.textContent = c.accountAlias ? `@${c.accountAlias}` : c.role;
+      e.name.style.color = c.accountAlias ? c.accent : "";
+      e.state.textContent = STATE_TEXT[c.status];
       e.dot.className = `dot ${c.status}`;
       e.el.style.borderColor = c.color;
       e.badge.textContent = c.interns.total > 0 ? `×${c.interns.total}` : "";
       e.badge.hidden = c.interns.total === 0;
-      e.zz.hidden = c.status !== "sleeping";
-      e.el.hidden = false; // measure at natural size
-      e.el.style.transform = "";
+      e.el.classList.toggle("asleep", c.status === "sleeping");
+      e.el.hidden = false; // measure at natural size (offsetWidth ignores transforms, so the label stays where it is)
       e.w = e.el.offsetWidth;
       e.h = e.el.offsetHeight;
       e.shown = true; // visible now; position() hides it again if it does not fit
@@ -53,27 +52,20 @@ export class Labels {
   private create(): Entry {
     const el = document.createElement("div");
     el.className = "label";
-    const row = document.createElement("div");
-    row.className = "row";
     const dot = document.createElement("span");
-    const role = document.createElement("b");
-    const acct = document.createElement("span");
-    acct.className = "acct";
+    const name = document.createElement("b");
+    const state = document.createElement("span");
+    state.className = "state";
     const badge = document.createElement("span");
     badge.className = "badge";
-    row.append(dot, role, acct, badge);
-    const sub = document.createElement("div");
-    sub.className = "sub";
-    const zz = document.createElement("div");
-    zz.className = "zz";
-    zz.textContent = "zZ";
-    el.append(zz, row, sub);
+    el.append(dot, name, state, badge);
+    el.style.transform = "translate(-9999px, -9999px)"; // until the first frame places it, never show it in the corner
     this.root.append(el);
-    return { el, role, acct, sub, dot, badge, zz, shown: true, w: 120, h: 40 };
+    return { el, name, state, dot, badge, shown: true, w: 120, h: 28 };
   }
 
   /**
-   * Per frame: move each label to its character's projected head position. Labels are placed in
+   * Per frame: move each label to its robot's projected head position. Labels are placed in
    * priority order (hovered, then busiest) and skipped if they would overlap one already placed.
    */
   position(stations: Map<string, Station>, camera: THREE.Camera, w: number, h: number, hovered: string | null, scale: number): void {
@@ -88,6 +80,7 @@ export class Labels {
       st.headPoint(this.v).project(camera);
       const x = (this.v.x * 0.5 + 0.5) * w;
       const y = (-this.v.y * 0.5 + 0.5) * h;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
       const lw = e.w * scale;
       const lh = e.h * scale;
       const r = { x0: x - lw / 2 - 2, x1: x + lw / 2 + 2, y0: y - lh - 2, y1: y + 2 };

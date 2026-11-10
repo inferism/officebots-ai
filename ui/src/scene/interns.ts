@@ -27,7 +27,7 @@ export class Interns {
   constructor(scene: THREE.Scene) {
     const white = new THREE.MeshLambertMaterial({ color: 0xffffff });
     this.body = new THREE.InstancedMesh(new THREE.BoxGeometry(0.4, 0.55, 0.28), white, CAPACITY);
-    this.headMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: 0xe8c39e }), CAPACITY);
+    this.headMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: 0xf4f2ec }), CAPACITY);
     this.body.count = this.headMesh.count = 0;
     this.body.frustumCulled = this.headMesh.frustumCulled = false;
     scene.add(this.body, this.headMesh);
