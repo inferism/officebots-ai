@@ -6,8 +6,8 @@ const usage = (): never => {
 };
 
 describe("start --since", () => {
-  it("loads the last 7 days by default", () => {
-    expect(DEFAULT_SINCE_MS).toBe(7 * 24 * 3600 * 1000);
+  it("loads the last 14 days by default", () => {
+    expect(DEFAULT_SINCE_MS).toBe(14 * 24 * 3600 * 1000);
   });
 
   it("is off by default and converts hours to milliseconds", () => {

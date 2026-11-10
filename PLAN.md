@@ -186,7 +186,7 @@ type Character = {
 ```
 States: `working` (event in last ~20 s or `stop_reason: tool_use` / task running), `waiting` (turn ended, session open), `sleeping` (no event for `idleAfterSec`, default 90; head down on the desk with a "zZ" bubble). The next event wakes the character up at the same desk.
 
-**Live only.** The office shows agents that are active now, plus agents seen earlier in this office run, who are asleep. On start, sessions whose log files changed in the last 7 days are loaded as sleeping so the room isn't empty (`officebots start --since <hours>` changes the window). There's no all-time history.
+**Live only.** The office shows agents that are active now, plus agents seen earlier in this office run, who are asleep. On start, sessions whose log files changed in the last 14 days are loaded as sleeping so the room isn't empty (`officebots start --since <hours>` changes the window). There's no all-time history.
 
 ### 3.4 Privacy rules (enforced in code, tested)
 

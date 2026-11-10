@@ -27,8 +27,8 @@ export function pickSources(args: string[], personalPath: string, usage: () => n
   ];
 }
 
-/** On start, sessions from the last 7 days are loaded as sleeping characters, so the room is not empty. */
-export const DEFAULT_SINCE_MS = 7 * 24 * 3600 * 1000;
+/** On start, sessions from the last 14 days are loaded as sleeping characters, so the room is not empty. */
+export const DEFAULT_SINCE_MS = 14 * 24 * 3600 * 1000;
 
 /** `--since <hours>` overrides the window (e.g. `--since 48` for two days). */
 export function parseSince(args: string[], usage: () => never): number | undefined {
