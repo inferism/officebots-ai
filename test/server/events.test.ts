@@ -27,7 +27,7 @@ afterEach(async () => {
 const event = (over: Record<string, unknown> = {}) => ({
   v: 1,
   id: "http:test-1",
-  time: "2026-11-10T12:00:00.000Z",
+  time: new Date().toISOString(), // now, so the agent counts as active (a fixed time would go stale)
   source: "http",
   tool: "gemini-cli",
   model: "gemini-pro",
