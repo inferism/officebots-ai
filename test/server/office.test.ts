@@ -41,7 +41,7 @@ const repo = (name: string) => {
   return join(base, name);
 };
 async function open(root: string, extra = {}) {
-  const o = await startOffice({ root, logSources: [{ adapter: claudeCodeAdapter, root: claude }], uiDir, throttleMs: 20, ...extra });
+  const o = await startOffice({ root, logSources: [{ adapter: claudeCodeAdapter, root: claude }], uiDir, personalConfigPath: join(base, "personal.json"), throttleMs: 20, ...extra });
   offices.push(o);
   return o;
 }

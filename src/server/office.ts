@@ -1,12 +1,14 @@
 // One office per project: free loopback port, run file, single instance.
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { Source } from "../adapters/index.js";
-import { createAccountHasher } from "../core/identity.js";
+import { emptySettings, loadSettings, projectConfigPath, type Settings } from "../core/config.js";
+import { createAccountHasher, personalConfigPath } from "../core/identity.js";
 import { createProjectResolver, projectKey } from "../core/project.js";
 import type { OfficeEvent } from "../core/schema.js";
 import { createIngest, type Ingest } from "../watcher/ingest.js";
+import { watchFiles } from "../watcher/settings.js";
 import { createHttpServer } from "./http.js";
 import { findOfficePort } from "./loopback.js";
 import { createRoom, type Room } from "./room.js";
@@ -17,6 +19,8 @@ export type OfficeOptions = {
   root: string;
   /** Log folders to watch (Claude Code, Codex, ...). Omit for demo mode: no log reading, no files written. */
   logSources?: Source[];
+  /** Personal config (nicknames, salt). Defaults to ~/.config/officebots/config.json. */
+  personalConfigPath?: string;
   /** Hashes raw account ids found in logs. Defaults to a salted hash with the salt in the personal config. */
   hashAccount?: (raw: string) => string;
   /** Folder with the built UI (index.html plus assets). */
@@ -51,6 +55,7 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
   const now = opts.now ?? Date.now;
   const runFile = runFilePath(opts.root);
   const live = opts.logSources !== undefined;
+  const personalPath = opts.personalConfigPath ?? personalConfigPath();
 
   if (live) {
     const running = await findOfficePort(opts.root);
@@ -62,7 +67,8 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
   let port = 0;
   const server = createHttpServer({ uiDir: opts.uiDir, getPort: () => port, project: { key }, onEvents: (events) => apply(events) });
   let lastSent = "";
-  const snapshotJson = () => JSON.stringify({ type: "room", room: room.snapshot(now()) });
+  let settings: Settings = emptySettings();
+  const snapshotJson = () => JSON.stringify({ type: "room", room: room.snapshot(now(), settings) });
   const ws = attachWs(server, () => port, (send) => send(snapshotJson()));
 
   // Push at most once per throttleMs, only when the snapshot changed. The tick also catches
@@ -93,7 +99,7 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
     const resolve = createProjectResolver();
     ingest = createIngest({
       sources: opts.logSources,
-      hashAccount: opts.hashAccount ?? createAccountHasher(),
+      hashAccount: opts.hashAccount ?? createAccountHasher(personalPath),
       project: (cwd) => (resolve(cwd) === key ? key : null),
       onEvents: apply,
       onProblem: opts.onProblem,
@@ -116,6 +122,20 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
     writeFileSync(runFile, JSON.stringify({ port, pid: process.pid, url, startedAt: new Date().toISOString() }));
   }
 
+  // Role names, rules and nicknames: read now and again whenever either file changes, no restart needed.
+  let settingsWatch: { close(): void } | undefined;
+  if (live) {
+    const reload = () => {
+      const loaded = loadSettings(opts.root, personalPath);
+      settings = loaded.value;
+      for (const p of loaded.problems) opts.onProblem?.(`settings: ${p}`);
+      schedule();
+    };
+    mkdirSync(dirname(personalPath), { recursive: true });
+    reload();
+    settingsWatch = watchFiles([projectConfigPath(opts.root), personalPath], reload);
+  }
+
   await ingest?.start();
   push();
 
@@ -124,9 +144,10 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
     port,
     ingest,
     apply,
-    snapshot: () => room.snapshot(now()),
+    snapshot: () => room.snapshot(now(), settings),
     async close() {
       clearInterval(tick);
+      settingsWatch?.close();
       clearTimeout(timer);
       ingest?.close();
       ws.close();

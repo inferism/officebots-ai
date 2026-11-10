@@ -1,7 +1,8 @@
 // Pure reducer: OfficeEvents in, Room snapshot out (PLAN.md §3.3).
 import { createHash } from "node:crypto";
 import { accentFor, colorFor } from "../core/colors.js";
-import { defaultRole } from "../core/roles.js";
+import { emptySettings, type Settings } from "../core/config.js";
+import { defaultRole, resolveStyle } from "../core/roles.js";
 import type { OfficeEvent, Tokens } from "../core/schema.js";
 
 export type TokenSummary = Tokens & { headline: number };
@@ -115,7 +116,8 @@ export function createRoom(project: { key: string; name: string }, opts: { idleA
       }
     },
 
-    snapshot(nowMs: number): Room {
+    /** settings (role renames, rules, nicknames) are applied here, so editing them relabels without re-reading logs. */
+    snapshot(nowMs: number, settings: Settings = emptySettings()): Room {
       const characters: Character[] = [...chars.values()].map((c) => {
         const byType: Record<string, number> = {};
         let active = 0;
@@ -124,14 +126,19 @@ export function createRoom(project: { key: string; name: string }, opts: { idleA
           if (i.status === "working" && nowMs - i.lastActive <= idleMs) active++;
         }
         const idx = c.account ? accounts.indexOf(c.account) : -1;
+        const nickname = (c.account && settings.nicknames[c.account]) || null;
+        // a nickname is always shown; "account N" only helps when there is more than one account to tell apart
+        const alias = nickname ?? (idx >= 0 && accounts.length > 1 ? `account ${idx + 1}` : null);
+        const style = resolveStyle({ tool: c.tool, model: c.model, role: c.role, nickname }, settings);
+        const color = style.color ?? colorFor(c.model);
         return {
           key: c.key,
           tool: c.tool,
           model: c.model,
-          role: c.role,
-          accountAlias: idx >= 0 ? `account ${idx + 1}` : null,
-          color: colorFor(c.model),
-          accent: accentFor(c.account, colorFor(c.model)),
+          role: style.role,
+          accountAlias: alias,
+          color,
+          accent: accentFor(c.account, color),
           status: nowMs - c.lastActive > idleMs ? "sleeping" : c.status,
           lastActive: new Date(c.lastActive).toISOString(),
           tokens: summary(c.tokens),

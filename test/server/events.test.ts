@@ -195,7 +195,7 @@ describe("officebots ping", () => {
     mkdirSync(join(repo, ".git"), { recursive: true });
     expect(await findOfficePort(repo)).toBeNull(); // nothing running yet
 
-    office = await startOffice({ root: repo, uiDir, logSources: [], throttleMs: 20 });
+    office = await startOffice({ root: repo, uiDir, logSources: [], personalConfigPath: join(base, "personal.json"), throttleMs: 20 });
     const port = await findOfficePort(repo);
     expect(port).toBe(office.port);
 

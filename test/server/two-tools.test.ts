@@ -50,6 +50,7 @@ describe("a Claude Code session and a Codex session in the same repo", () => {
       root: repo,
       uiDir: ui,
       throttleMs: 20,
+      personalConfigPath: join(base, "personal.json"),
       hashAccount: (r) => hashAccount(r, "salt"),
       logSources: [
         { adapter: claudeCodeAdapter, root: claude },
