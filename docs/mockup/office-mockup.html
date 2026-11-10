@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Office Mockup</title>
+<style>
+  :root{--bg:#14161c;--panel:#1d2029;--line:#2c303c;--text:#e8eaf0;--mute:#8b90a0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,Segoe UI,sans-serif;height:100vh;display:flex;flex-direction:column}
+  header{padding:12px 18px;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0}
+  header span{color:var(--mute);font-size:13px}
+  main{flex:1;display:flex;min-height:0}
+  #stage{flex:1;position:relative;min-width:0}
+  canvas{display:block}
+  aside{width:300px;border-left:1px solid var(--line);background:var(--panel);padding:14px;overflow:auto}
+  aside h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 8px}
+  .btn{display:block;width:100%;text-align:left;background:#262a36;border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px;margin-bottom:6px;cursor:pointer;font:inherit}
+  .btn:hover:not(:disabled){background:#2f3442}
+  .btn:disabled{opacity:.4;cursor:default}
+  .btn small{display:block;color:var(--mute)}
+  .row{display:flex;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none}
+  .row b{display:block}
+  .row small{color:var(--mute)}
+  .row .tok{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--mute);font-size:12px}
+  label{display:flex;gap:8px;align-items:center;color:var(--mute);margin:12px 0}
+  #tip{position:absolute;pointer-events:none;background:#0d0f14ee;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;display:none;white-space:nowrap}
+  .clear{background:none;border:none;color:var(--mute);cursor:pointer;text-decoration:underline;padding:0;font:inherit}
+  @media(max-width:720px){main{flex-direction:column}aside{width:auto;border-left:0;border-top:1px solid var(--line);max-height:40%}}
+</style>
+</head>
+<body>
+<header>
+  <h1>AI Office <span>mockup · fake data, nothing is read from your logs yet</span></h1>
+  <span id="total"></span>
+</header>
+<main>
+  <div id="stage"><canvas id="c"></canvas><div id="tip"></div></div>
+  <aside>
+    <h2>Simulate an AI being used</h2>
+    <div id="presets"></div>
+    <label><input type="checkbox" id="auto" checked> Auto-simulate activity</label>
+    <h2>In the office <button class="clear" id="clear">clear all</button></h2>
+    <div id="list"></div>
+  </aside>
+</main>
+
+<script>
+// ---------- fake data: in the real thing these come from Claude Code / Codex session logs ----------
+const PRESETS = [
+  {key:'sonnet', tool:'Claude Code', model:'Sonnet 5.5',    role:'Main Coder', color:[217,119,87]},
+  {key:'codex',  tool:'Codex',       model:'GPT Sol 6.1',   role:'Reviewer',   color:[16,163,127]},
+  {key:'opus',   tool:'Claude Code', model:'Opus 5.5',      role:'Architect',  color:[150,110,220]},
+  {key:'haiku',  tool:'Claude Code', model:'Haiku 5.5 (Explore subagent)', role:'Explorer', color:[230,190,70]},
+  {key:'gemini', tool:'Gemini CLI',  model:'Gemini Pro',    role:'Researcher', color:[80,140,235]},
+  {key:'cursor', tool:'Cursor',      model:'Auto',          role:'Autocomplete', color:[200,90,160]},
+];
+const SLOTS = [[1,1.6],[4.5,1.6],[1,3.9],[4.5,3.9],[1,6.1],[4.5,6.1]];
+const N = 8, WALL = 2.6;
+const agents = [];
+
+// ---------- canvas / projection ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W,H,TW,OX,OY;
+function resize(){
+  const r = cv.parentElement.getBoundingClientRect(), d = devicePixelRatio||1;
+  cv.width=r.width*d; cv.height=r.height*d; cv.style.width=r.width+'px'; cv.style.height=r.height+'px';
+  ctx.setTransform(d,0,0,d,0,0); W=r.width; H=r.height;
+  TW = Math.min(W/(N+1.2), H/5.9);
+  OX = W/2; OY = (H-5.3*TW)/2 + WALL*TW/2 + TW*0.1;
+}
+addEventListener('resize',resize);
+const P = (x,y,z=0)=>[OX+(x-y)*TW/2, OY+(x+y)*TW/4 - z*TW/2];
+const rgb = (c,f=1,a=1)=>`rgba(${Math.min(255,c[0]*f)|0},${Math.min(255,c[1]*f)|0},${Math.min(255,c[2]*f)|0},${a})`;
+function poly(pts,fill,stroke){
+  ctx.beginPath(); pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath();
+  ctx.fillStyle=fill; ctx.fill(); if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}
+}
+// box with base corner (x,y,z), size w(d x), d(y), h(z). Visible: top, +y face, +x face
+function box(x,y,z,w,d,h,c,a=1){
+  poly([P(x,y,z+h),P(x+w,y,z+h),P(x+w,y+d,z+h),P(x,y+d,z+h)], rgb(c,1.15,a));
+  poly([P(x,y+d,z),P(x+w,y+d,z),P(x+w,y+d,z+h),P(x,y+d,z+h)], rgb(c,.82,a));
+  poly([P(x+w,y,z),P(x+w,y+d,z),P(x+w,y+d,z+h),P(x+w,y,z+h)], rgb(c,.62,a));
+}
+
+// ---------- scene ----------
+function drawRoom(){
+  for(let x=0;x<N;x++)for(let y=0;y<N;y++){
+    const c=(x+y)%2?[58,62,78]:[50,54,70];
+    poly([P(x,y),P(x+1,y),P(x+1,y+1),P(x,y+1)],rgb(c));
+  }
+  // back walls: y=0 wall (right) and x=0 wall (left)
+  poly([P(0,0,0),P(N,0,0),P(N,0,WALL),P(0,0,WALL)],rgb([92,98,124]));
+  poly([P(0,0,0),P(0,N,0),P(0,N,WALL),P(0,0,WALL)],rgb([74,79,102]));
+  poly([P(0,0,.18),P(N,0,.18),P(N,0,0),P(0,0,0)],rgb([60,64,84]));
+  poly([P(0,0,.18),P(0,N,.18),P(0,N,0),P(0,0,0)],rgb([48,52,70]));
+  // whiteboard with a tiny "graph" (the graphify idea)
+  const wb=(x,z)=>P(x,0,z);
+  poly([wb(2.6,.9),wb(5.8,.9),wb(5.8,2.2),wb(2.6,2.2)],'#e9ecf3','#8b90a0');
+  const nodes=[[3.2,1.7],[4.1,1.3],[4.9,1.8],[5.4,1.2],[3.8,2.0]], ed=[[0,1],[1,2],[2,3],[1,4],[0,4]];
+  ctx.strokeStyle='#7a8095'; ctx.lineWidth=1.5;
+  ed.forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(...wb(...nodes[a]));ctx.lineTo(...wb(...nodes[b]));ctx.stroke();});
+  nodes.forEach(([x,z],i)=>{const[p,q]=wb(x,z);ctx.fillStyle=['#d97757','#10a37f','#966edc','#e6be46','#508ceb'][i];ctx.beginPath();ctx.arc(p,q,TW*.035,0,7);ctx.fill();});
+  // window on left wall
+  const lw=(y,z)=>P(0,y,z);
+  poly([lw(1.5,.9),lw(4.5,.9),lw(4.5,2.2),lw(1.5,2.2)],'#6fa8d8aa','#2c303c');
+  poly([lw(3,.9),lw(3.05,.9),lw(3.05,2.2),lw(3,2.2)],'#2c303c');
+}
+function drawDesk(x,y,agent){
+  box(x+.1,y+.1,0,.12,.12,.55,[40,42,54]); box(x+1.78,y+.1,0,.12,.12,.55,[40,42,54]);
+  box(x+.1,y+.78,0,.12,.12,.55,[40,42,54]); box(x+1.78,y+.78,0,.12,.12,.55,[40,42,54]);
+  box(x,y,.55,2,1,.1,[176,138,96]);
+  const on = agent && agent.active;
+  box(x+.15,y+.15,.65,.7,.08,.5,on?[agent.color[0]*.6+40,agent.color[1]*.6+40,agent.color[2]*.6+40]:[30,32,40]); // monitor
+  box(x+.45,y+.12,.65,.1,.1,.08,[30,32,40]);
+  box(x+1.2,y+.45,.65,.5,.3,.04,[210,212,220]); // keyboard
+}
+function drawChar(a,t){
+  const [sx,sy]=SLOTS[a.slot], cx=sx+1.4, cy=sy-.5;
+  const age=Math.min(1,(t-a.born)/900), e=1-Math.pow(1-age,3), dz=(1-e)*4;
+  const alpha=Math.min(1,age*2);
+  box(cx-.35,cy-.35,dz,.7,.7,.4,[45,48,62],alpha);            // chair seat
+  box(cx-.35,cy-.45,dz+.4,.7,.1,.55,[45,48,62],alpha);        // chair back
+  const bob=a.active?Math.sin(t/110+a.slot)*.04:Math.sin(t/700+a.slot)*.012;
+  const body=a.color;
+  box(cx-.25,cy-.2,dz+.4,.5,.4,.45,body,alpha);               // legs/torso base
+  box(cx-.27,cy-.2,dz+.85,.54,.4,.5+bob,body,alpha);          // torso
+  const armUp=a.active?Math.abs(Math.sin(t/90+a.slot))*.1:0;
+  box(cx-.4,cy-.1,dz+.85,.13,.3,.3+armUp,[body[0]*.85,body[1]*.85,body[2]*.85],alpha);
+  box(cx+.27,cy-.1,dz+.85,.13,.3,.3+(a.active?Math.abs(Math.cos(t/90+a.slot))*.1:0),[body[0]*.85,body[1]*.85,body[2]*.85],alpha);
+  const hz=dz+1.35+bob;
+  box(cx-.22,cy-.2,hz,.44,.4,.4,[238,208,176],alpha);          // head
+  box(cx-.24,cy-.22,hz+.32,.48,.44,.12,[60,44,38],alpha);      // hair
+  // eyes on +y face
+  const ey=cy+.2, ez=hz+.2;
+  [[-.1],[.06]].forEach(([ox])=>{const p=P(cx+ox,ey,ez),q=P(cx+ox+.05,ey,ez+.07);
+    ctx.fillStyle='#222';ctx.fillRect(p[0],q[1],Math.max(2,q[0]-p[0]),Math.max(2,p[1]-q[1]+TW*.03));});
+  a.sp = P(cx,cy,hz+.55);   // for label + hover
+  a.alpha = alpha;
+}
+function drawLabel(a,t){
+  const [x,y]=a.sp, fs=Math.max(10,TW*.115);
+  ctx.save(); ctx.globalAlpha=a.alpha;
+  ctx.font=`600 ${fs}px system-ui,sans-serif`;
+  const role=a.role, sub=a.model;
+  const w=Math.max(ctx.measureText(role).width, ctx.measureText(sub).width*.85)+fs*1.8, h=fs*2.3, yy=y-fs*.8-h;
+  ctx.fillStyle='#0d0f14ee'; ctx.strokeStyle=rgb(a.color); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.roundRect(x-w/2,yy,w,h,6); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x-5,yy+h); ctx.lineTo(x,yy+h+6); ctx.lineTo(x+5,yy+h); ctx.fillStyle=rgb(a.color); ctx.fill();
+  ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.fillText(role,x+fs*.4,yy+fs*1.0);
+  ctx.font=`${fs*.85}px system-ui,sans-serif`; ctx.fillStyle='#9aa0b4'; ctx.fillText(sub.length>22?sub.slice(0,21)+'…':sub,x+fs*.4,yy+fs*1.95);
+  // status dot
+  ctx.beginPath(); ctx.arc(x-w/2+fs*.7,yy+h/2,fs*.28,0,7);
+  ctx.fillStyle=a.active?(Math.sin(t/150)>0?'#4ade80':'#22c55e'):'#6b7280'; ctx.fill();
+  ctx.restore();
+}
+function drawPlant(x,y){
+  box(x,y,0,.5,.5,.4,[150,90,70]); box(x+.1,y+.1,.4,.3,.3,.5,[70,150,90]); box(x-.05,y+.05,.7,.6,.4,.35,[80,170,100]);
+}
+function frame(t){
+  ctx.clearRect(0,0,W,H);
+  drawRoom();
+  const items=[];
+  SLOTS.forEach(([x,y],i)=>{const a=agents.find(g=>g.slot===i);
+    items.push({d:x+1+y+.5,fn:()=>drawDesk(x,y,a)});
+    if(a) items.push({d:x+1.4+y-.5,fn:()=>drawChar(a,t)});
+    else items.push({d:x+1.4+y-.5,fn:()=>{/* empty chair */box(x+1.05,y-.85,0,.7,.7,.4,[45,48,62],.5);}});
+  });
+  items.push({d:15,fn:()=>drawPlant(7,.4)}, {d:14.2,fn:()=>drawPlant(.4,7)});
+  items.sort((a,b)=>a.d-b.d).forEach(i=>i.fn());
+  agents.forEach(a=>{ if(a.sp) drawLabel(a,t); });
+  requestAnimationFrame(frame);
+}
+
+// ---------- state + UI ----------
+const fmt=n=>n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?(n/1e3).toFixed(1)+'k':n;
+function addAgent(key){
+  const p=PRESETS.find(x=>x.key===key); if(agents.find(a=>a.key===key)) return;
+  const free=SLOTS.map((_,i)=>i).find(i=>!agents.some(a=>a.slot===i)); if(free===undefined) return;
+  agents.push({...p,slot:free,tokens:0,active:true,born:performance.now(),sp:null});
+  ui();
+}
+function ui(){
+  document.getElementById('presets').innerHTML=PRESETS.map(p=>
+    `<button class="btn" data-k="${p.key}" ${agents.some(a=>a.key===p.key)?'disabled':''}><b>${p.tool}</b> · ${p.model}<small>role: ${p.role}</small></button>`).join('');
+  document.querySelectorAll('#presets .btn').forEach(b=>b.onclick=()=>addAgent(b.dataset.k));
+  document.getElementById('list').innerHTML=agents.length?agents.map(a=>
+    `<div class="row"><span class="dot" style="background:${rgb(a.color)}"></span><div><b>${a.role}</b><small>${a.tool} · ${a.model}</small></div><span class="tok">${fmt(a.tokens|0)} tok</span></div>`).join('')
+    :'<small style="color:var(--mute)">Empty. Add one above.</small>';
+  document.getElementById('total').textContent=`${agents.length} agent${agents.length===1?'':'s'} · ${fmt(agents.reduce((s,a)=>s+a.tokens,0)|0)} tokens`;
+}
+document.getElementById('clear').onclick=()=>{agents.length=0;ui();};
+setInterval(()=>{   // simulated activity
+  const auto=document.getElementById('auto').checked;
+  agents.forEach(a=>{
+    if(auto&&Math.random()<.18) a.active=!a.active;
+    if(a.active) a.tokens+=Math.random()*900;
+  }); ui();
+},1000);
+
+// hover tooltip
+const tip=document.getElementById('tip');
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  const a=agents.find(a=>a.sp&&Math.hypot(a.sp[0]-mx,a.sp[1]+TW*.25-my)<TW*.45);
+  if(!a){tip.style.display='none';return;}
+  tip.innerHTML=`<b>${a.role}</b><br>${a.tool} · ${a.model}<br>${a.active?'🟢 working':'⚪ idle'} · ${fmt(a.tokens|0)} tokens`;
+  tip.style.display='block'; tip.style.left=(mx+14)+'px'; tip.style.top=(my+14)+'px';
+});
+cv.addEventListener('mouseleave',()=>tip.style.display='none');
+
+resize(); addAgent('sonnet'); ui(); requestAnimationFrame(frame);
+setTimeout(()=>addAgent('codex'),1800);
+</script>
+</body>
+</html>
