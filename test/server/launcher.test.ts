@@ -96,6 +96,15 @@ describe(".officebots/office.html", () => {
     expect(JSON.parse(json).name).toBe(evil); // still shown exactly, as text
   });
 
+  it("wears the office's look: robot logo and the four time-of-day palettes, with a ?time= preview", () => {
+    const html = renderLauncherHtml({ port: 49500, key: "k", name: "demo" });
+    expect(html).toContain("<svg");
+    expect(html).toContain("officebots");
+    for (const phase of ["night", "dawn", "day", "dusk"]) expect(html).toContain(phase + ": {");
+    expect(html).toContain('get("time")');
+    expect(html).not.toContain("xmlns"); // an inline svg needs no namespace link, and the page links nowhere
+  });
+
   it("loads nothing from anywhere but the office itself", () => {
     const html = renderLauncherHtml({ port: 49500, key: "k", name: "demo" });
     expect(html).not.toMatch(/\bsrc=|<link/);
