@@ -309,6 +309,7 @@ Each phase ends with a commit and push and has a "done" check you can run yourse
 - More adapters as their log formats are verified on a real machine (Gemini CLI, Cursor, others), each starting from a `docs/log-formats.md` entry.
 - Claude Code plugin marketplace packaging (`.claude-plugin/plugin.json` + `hooks/hooks.json` + `skills/`), so the hook registers through the plugin install prompt instead of editing settings.
 - Persisted tail offsets, so startup is instant on projects with large logs.
+- Smarter default role names (for example from what the agent is doing or how the user named the subagent). v1 ships simple defaults that each project can rename in `officebots.json`.
 
 ### Later (out of scope for v1): team / other-machine sync
 The design leaves room for it without changes to adapters:
