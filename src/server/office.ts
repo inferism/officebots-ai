@@ -2,7 +2,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { basename, join } from "node:path";
-import { projectKey, createProjectResolver } from "../core/project.js";
+import { createProjectResolver, projectKey } from "../core/project.js";
+import type { OfficeEvent } from "../core/schema.js";
 import { createIngest, type Ingest } from "../watcher/ingest.js";
 import { createHttpServer } from "./http.js";
 import { probeOffice } from "./probe.js";
@@ -12,9 +13,10 @@ import { attachWs } from "./ws.js";
 export type OfficeOptions = {
   /** Project root folder. */
   root: string;
-  /** Directory holding Claude Code project logs. */
-  claudeProjectsDir: string;
-  uiHtml: string;
+  /** Directory holding Claude Code project logs. Omit for demo mode: no log reading, no files written. */
+  claudeProjectsDir?: string;
+  /** Folder with the built UI (index.html plus assets). */
+  uiDir: string;
   idleAfterSec?: number;
   recentMs?: number;
   now?: () => number;
@@ -26,7 +28,9 @@ export type OfficeOptions = {
 export type Office = {
   url: string;
   port: number;
-  ingest: Ingest;
+  ingest: Ingest | undefined;
+  /** Feed events straight into the room (used by the demo generator). */
+  apply(events: OfficeEvent[]): void;
   snapshot(): Room;
   close(): Promise<void>;
 };
@@ -52,8 +56,9 @@ function pidAlive(pid: unknown): boolean {
 export async function startOffice(opts: OfficeOptions): Promise<Office> {
   const now = opts.now ?? Date.now;
   const runFile = runFilePath(opts.root);
+  const live = opts.claudeProjectsDir !== undefined;
 
-  if (existsSync(runFile)) {
+  if (live && existsSync(runFile)) {
     try {
       const prev = JSON.parse(readFileSync(runFile, "utf8"));
       if (pidAlive(prev.pid) && typeof prev.port === "number" && (await probeOffice(prev.port))) {
@@ -67,7 +72,7 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
   const key = projectKey(opts.root);
   const room = createRoom({ key, name: basename(opts.root) }, { idleAfterSec: opts.idleAfterSec });
   let port = 0;
-  const server = createHttpServer({ uiHtml: opts.uiHtml, getPort: () => port, project: { key } });
+  const server = createHttpServer({ uiDir: opts.uiDir, getPort: () => port, project: { key } });
   let lastSent = "";
   const snapshotJson = () => JSON.stringify({ type: "room", room: room.snapshot(now()) });
   const ws = attachWs(server, () => port, (send) => send(snapshotJson()));
@@ -90,21 +95,23 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
     timer = setTimeout(push, Math.max(0, throttleMs - (Date.now() - lastPush)));
   };
   const tick = setInterval(schedule, 1000);
+  const apply = (events: OfficeEvent[]) => {
+    for (const e of events) room.apply(e);
+    schedule();
+  };
 
-  const ingest = createIngest({
-    root: opts.claudeProjectsDir,
-    project: (() => {
-      const resolve = createProjectResolver();
-      return (cwd) => (resolve(cwd) === key ? key : null);
-    })(),
-    onEvents: (events) => {
-      for (const e of events) room.apply(e);
-      schedule();
-    },
-    onProblem: opts.onProblem,
-    recentMs: opts.recentMs,
-    now,
-  });
+  let ingest: Ingest | undefined;
+  if (opts.claudeProjectsDir) {
+    const resolve = createProjectResolver();
+    ingest = createIngest({
+      root: opts.claudeProjectsDir,
+      project: (cwd) => (resolve(cwd) === key ? key : null),
+      onEvents: apply,
+      onProblem: opts.onProblem,
+      recentMs: opts.recentMs,
+      now,
+    });
+  }
 
   await new Promise<void>((res, rej) => {
     server.once("error", rej);
@@ -113,25 +120,29 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
   port = (server.address() as AddressInfo).port;
   const url = `http://127.0.0.1:${port}`;
 
-  mkdirSync(join(opts.root, ".officebots", ".state"), { recursive: true });
-  const ignore = join(opts.root, ".officebots", ".gitignore");
-  if (!existsSync(ignore)) writeFileSync(ignore, ".state/\n");
-  writeFileSync(runFile, JSON.stringify({ port, pid: process.pid, url, startedAt: new Date().toISOString() }));
+  if (live) {
+    mkdirSync(join(opts.root, ".officebots", ".state"), { recursive: true });
+    const ignore = join(opts.root, ".officebots", ".gitignore");
+    if (!existsSync(ignore)) writeFileSync(ignore, ".state/\n");
+    writeFileSync(runFile, JSON.stringify({ port, pid: process.pid, url, startedAt: new Date().toISOString() }));
+  }
 
-  await ingest.start();
+  await ingest?.start();
   push();
 
   return {
     url,
     port,
     ingest,
+    apply,
     snapshot: () => room.snapshot(now()),
     async close() {
       clearInterval(tick);
       clearTimeout(timer);
-      ingest.close();
+      ingest?.close();
       ws.close();
       await new Promise<void>((r) => server.close(() => r()));
+      if (!live) return;
       try {
         if (JSON.parse(readFileSync(runFile, "utf8")).port === port) rmSync(runFile);
       } catch {

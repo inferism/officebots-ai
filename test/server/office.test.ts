@@ -11,10 +11,15 @@ import { appendLines, assistantLine } from "../helpers/fake-writer.js";
 let base: string;
 let claude: string;
 const offices: Office[] = [];
+let uiDir: string;
 beforeEach(() => {
   base = realpathSync(mkdtempSync(join(tmpdir(), "officebots-office-")));
   claude = join(base, "claude", "projects");
   mkdirSync(claude, { recursive: true });
+  uiDir = join(base, "ui");
+  mkdirSync(uiDir);
+  writeFileSync(join(uiDir, "index.html"), "<html>ui</html>");
+  writeFileSync(join(uiDir, "app.js"), "// app");
 });
 afterEach(async () => {
   for (const o of offices.splice(0)) await o.close();
@@ -35,7 +40,7 @@ const repo = (name: string) => {
   return join(base, name);
 };
 async function open(root: string, extra = {}) {
-  const o = await startOffice({ root, claudeProjectsDir: claude, uiHtml: "<html>ui</html>", throttleMs: 20, ...extra });
+  const o = await startOffice({ root, claudeProjectsDir: claude, uiDir, throttleMs: 20, ...extra });
   offices.push(o);
   return o;
 }
@@ -119,7 +124,10 @@ describe("office server", () => {
     const office = await open(repo("a"));
     expect((await get(office.port, "/")).body).toContain("ui");
     expect((await get(office.port, "/health")).status).toBe(200);
+    expect((await get(office.port, "/app.js")).status).toBe(200);
     expect((await get(office.port, "/nope")).status).toBe(404);
+    expect((await get(office.port, "/..%2f..%2fpackage.json")).status).toBe(404);
+    expect((await get(office.port, "/%2e%2e/secret.html")).status).toBe(404);
     expect((await get(office.port, "/", { Host: "evil.example" })).status).toBe(403);
 
     const bad = new WebSocket(`ws://127.0.0.1:${office.port}/ws`, { origin: "https://evil.example" });

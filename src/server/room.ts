@@ -1,6 +1,6 @@
 // Pure reducer: OfficeEvents in, Room snapshot out (PLAN.md §3.3).
 import { createHash } from "node:crypto";
-import { colorFor } from "../core/colors.js";
+import { accentFor, colorFor } from "../core/colors.js";
 import { defaultRole } from "../core/roles.js";
 import type { OfficeEvent, Tokens } from "../core/schema.js";
 
@@ -130,8 +130,8 @@ export function createRoom(project: { key: string; name: string }, opts: { idleA
           model: c.model,
           role: c.role,
           accountAlias: idx >= 0 ? `account ${idx + 1}` : null,
-          color: colorFor(c.key),
-          accent: colorFor(c.account ?? c.key),
+          color: colorFor(c.model),
+          accent: accentFor(c.account, colorFor(c.model)),
           status: nowMs - c.lastActive > idleMs ? "sleeping" : c.status,
           lastActive: new Date(c.lastActive).toISOString(),
           tokens: summary(c.tokens),
