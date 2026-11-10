@@ -8,6 +8,7 @@ export const COLORS = {
   wallRight: 0x5c627c, // wall behind, seen on the right
   wallLeft: 0x4a4f66,
   baseboard: 0x3c4054,
+  slab: 0x232733,
   desk: 0x8a6a4a,
   deskTop: 0xa98863,
   chair: 0x2b2e3a,

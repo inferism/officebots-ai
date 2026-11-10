@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeLayout, type LayoutChar, roomSize } from "../../ui/src/scene/layout.js";
+import { computeLayout, deskPosition, INTERN_REACH, type LayoutChar, roomSize, seatPosition } from "../../ui/src/scene/layout.js";
 
 const T = Date.parse("2026-11-10T10:00:00.000Z");
 const ch = (key: string, status: LayoutChar["status"], agoSec = 0): LayoutChar => ({
@@ -64,6 +64,29 @@ describe("computeLayout", () => {
     const chars = [...Array.from({ length: 12 }, (_, i) => ch(`a${i}`, "working")), ch("z", "sleeping")];
     const withLounge = roomSize(computeLayout(chars, undefined, OPTS));
     expect(withLounge.w).toBeGreaterThan(noLounge.w);
+  });
+
+  it("the floor always has room for every desk, its interns and every sofa, in whole tiles", () => {
+    for (let n = 0; n <= 45; n++) {
+      for (const sleepers of [0, Math.floor(n / 2), n]) {
+        const chars = Array.from({ length: n }, (_, i) => ch(`c${i}`, i < sleepers ? "sleeping" : "working", i * 10));
+        const l = computeLayout(chars, undefined, OPTS);
+        const { w, d } = roomSize(l);
+        expect(w % 2).toBe(0);
+        expect(d % 2).toBe(0);
+        for (const slot of l.desks.values()) {
+          const p = deskPosition(slot, l.cols);
+          expect(p.x - INTERN_REACH.x).toBeGreaterThanOrEqual(0);
+          expect(p.x + INTERN_REACH.x).toBeLessThanOrEqual(w);
+          expect(p.z + INTERN_REACH.front).toBeLessThanOrEqual(d);
+        }
+        for (const seat of l.lounge.values()) {
+          const p = seatPosition(seat, l.cols);
+          expect(p.x + 1).toBeLessThanOrEqual(w);
+          expect(p.z + 1).toBeLessThanOrEqual(d);
+        }
+      }
+    }
   });
 
   it("handles an empty office", () => {

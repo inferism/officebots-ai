@@ -24,6 +24,7 @@ export class OfficeScene {
   private size = { w: 5, d: 4.4 };
   private sizeTarget = { w: 5, d: 4.4 };
   private floor: THREE.Mesh;
+  private slab: THREE.Mesh;
   private floorTex: THREE.CanvasTexture;
   private wallBack: THREE.Mesh;
   private wallLeft: THREE.Mesh;
@@ -72,7 +73,9 @@ export class OfficeScene {
     this.floor.rotation.x = -Math.PI / 2;
     this.wallBack = box(1, WALL_H, 0.3, mat(COLORS.wallRight));
     this.wallLeft = box(0.3, WALL_H, 1, mat(COLORS.wallLeft));
-    this.scene.add(this.floor, this.wallBack, this.wallLeft);
+    // a slab under the floor, so its front edges have thickness and it reads as a solid floor, not a sheet
+    this.slab = box(1, 0.5, 1, mat(COLORS.slab));
+    this.scene.add(this.floor, this.slab, this.wallBack, this.wallLeft);
 
     addEventListener("resize", () => this.resize());
     this.renderer.domElement.addEventListener("pointermove", (e) => {
@@ -154,6 +157,8 @@ export class OfficeScene {
     this.floor.scale.set(w, d, 1);
     this.floor.position.set(w / 2, 0, d / 2);
     this.floorTex.repeat.set(w / 2, d / 2);
+    this.slab.scale.set(w + 0.3, 0.5, d + 0.3);
+    this.slab.position.set((w - 0.3) / 2, -0.27, (d - 0.3) / 2);
     this.wallBack.scale.set(w, WALL_H, 0.3);
     this.wallBack.position.set(w / 2, WALL_H / 2, -0.15);
     this.wallLeft.scale.set(0.3, WALL_H, d);

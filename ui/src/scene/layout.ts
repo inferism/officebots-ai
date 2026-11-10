@@ -77,12 +77,18 @@ export function seatPosition(seat: number, cols: number): { x: number; z: number
   return { x: left + 1 + (seat % LOUNGE_COLS) * SEAT_PITCH, z: 2.0 + Math.floor(seat / LOUNGE_COLS) * SEAT_PITCH };
 }
 
-/** Floor size in world units for a layout. */
+/** How far interns stand from a seat position (see interns.ts), including their body: sideways and toward the viewer. */
+export const INTERN_REACH = { x: 2.1, front: 2.8 };
+
+/** Round up to a whole number of 2x2 floor tiles, so the checkerboard is never cut off mid-tile at an edge. */
+const wholeTiles = (n: number) => 2 * Math.ceil(n / 2);
+
+/** Floor size in world units for a layout. Everything placed by deskPosition/seatPosition, interns included, fits inside. */
 export function roomSize(l: Layout): { w: number; d: number } {
-  const deskW = l.cols * PITCH_X + 0.6;
-  const deskD = l.rows * PITCH_Z + 0.4;
+  const deskW = wholeTiles(l.cols * PITCH_X + 0.6);
+  const deskD = wholeTiles(2 + (l.rows - 1) * PITCH_Z + INTERN_REACH.front + 0.5);
   if (l.lounge.size === 0) return { w: deskW, d: deskD };
   const seatRows = Math.ceil(l.lounge.size / LOUNGE_COLS);
   const loungeW = LOUNGE_COLS * SEAT_PITCH + 2;
-  return { w: deskW + 1.5 + loungeW, d: Math.max(deskD, seatRows * SEAT_PITCH + 3) };
+  return { w: wholeTiles(deskW + 1.5 + loungeW), d: Math.max(deskD, wholeTiles(seatRows * SEAT_PITCH + 3)) };
 }
