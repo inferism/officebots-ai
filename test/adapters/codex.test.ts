@@ -120,6 +120,30 @@ describe("codex parser", () => {
   });
 });
 
+describe("codex: model not yet known", () => {
+  const line = (ordinal: number, type: string, payload: object) =>
+    JSON.stringify({ timestamp: "2026-11-10T12:00:00.000Z", ordinal, type, payload, metadata: {} });
+  const meta = line(0, "session_meta", { id: "t", cwd: "/x" });
+  const usage = { input_tokens: 10, cached_input_tokens: 0, cache_write_input_tokens: 0, output_tokens: 5, reasoning_output_tokens: 0, total_tokens: 15 };
+
+  it("does not make a phantom character from status events that come before any model", () => {
+    const p = createCodexParser({ project: () => "p" });
+    const { events } = p.parse([meta, line(1, "event_msg", { type: "task_started" }), line(2, "event_msg", { type: "task_complete" })]);
+    expect(events).toEqual([]);
+  });
+
+  it("still counts tokens that arrive before a model, and statuses once the model is known", () => {
+    const p = createCodexParser({ project: () => "p" });
+    const { events } = p.parse([
+      meta,
+      line(1, "event_msg", { type: "token_count", info: { total_token_usage: usage } }),
+      line(2, "turn_context", { model: "m-1", cwd: "/x" }),
+      line(3, "event_msg", { type: "task_started" }),
+    ]);
+    expect(events.map((e) => [e.event, e.model])).toEqual([["tokens", "unknown"], ["working", "m-1"]]);
+  });
+});
+
 describe("codex fixtures", () => {
   it("the compressed fixture decompresses to exactly the live file", () => {
     expect(zstdDecompressSync(readFileSync(ZST1)).toString("utf8")).toBe(readFileSync(LIVE1, "utf8"));

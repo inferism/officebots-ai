@@ -141,6 +141,8 @@ export function createCodexParser(ctx: ParseContext): LineParser {
 
         if (silent || inherited) return;
         if (!thread || !session || !cwd) return;
+        // A status change with no known model cannot be placed on a character; it would only create a phantom "unknown" one.
+        if (!model && event !== "tokens") return;
         const project = ctx.project(cwd);
         if (!project) return;
         const ev = validateEvent({
