@@ -3,7 +3,7 @@ import type { Station } from "./character.js";
 
 const LABEL_CAP = 40; // hard cap; labels that would cover a busier character's label are skipped as well
 
-type Entry = { el: HTMLDivElement; role: HTMLElement; sub: HTMLElement; dot: HTMLElement; badge: HTMLElement; zz: HTMLElement; shown: boolean; w: number; h: number };
+type Entry = { el: HTMLDivElement; role: HTMLElement; acct: HTMLElement; sub: HTMLElement; dot: HTMLElement; badge: HTMLElement; zz: HTMLElement; shown: boolean; w: number; h: number };
 
 /** HTML labels projected from 3D points, so text stays crisp and the count can be capped. */
 export class Labels {
@@ -32,7 +32,10 @@ export class Labels {
         this.entries.set(st.key, e);
       }
       const c = st.data;
-      e.role.textContent = c.role + (c.accountAlias ? ` @${c.accountAlias}` : "");
+      e.role.textContent = c.role;
+      e.acct.textContent = c.accountAlias ? `@${c.accountAlias}` : "";
+      e.acct.hidden = !c.accountAlias;
+      e.acct.style.color = c.accent; // the account's accent color
       e.sub.textContent = c.model.length > 24 ? c.model.slice(0, 23) + "…" : c.model;
       e.dot.className = `dot ${c.status}`;
       e.el.style.borderColor = c.color;
@@ -54,9 +57,11 @@ export class Labels {
     row.className = "row";
     const dot = document.createElement("span");
     const role = document.createElement("b");
+    const acct = document.createElement("span");
+    acct.className = "acct";
     const badge = document.createElement("span");
     badge.className = "badge";
-    row.append(dot, role, badge);
+    row.append(dot, role, acct, badge);
     const sub = document.createElement("div");
     sub.className = "sub";
     const zz = document.createElement("div");
@@ -64,7 +69,7 @@ export class Labels {
     zz.textContent = "zZ";
     el.append(zz, row, sub);
     this.root.append(el);
-    return { el, role, sub, dot, badge, zz, shown: true, w: 120, h: 40 };
+    return { el, role, acct, sub, dot, badge, zz, shown: true, w: 120, h: 40 };
   }
 
   /**

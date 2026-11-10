@@ -14,7 +14,14 @@ function row(c: Character): HTMLElement {
   const main = document.createElement("div");
   main.className = "item-main";
   const name = document.createElement("b");
-  name.textContent = c.role + (c.accountAlias ? ` @${c.accountAlias}` : "");
+  name.textContent = c.role;
+  if (c.accountAlias) {
+    const acct = document.createElement("span");
+    acct.className = "acct";
+    acct.textContent = ` @${c.accountAlias}`;
+    acct.style.color = c.accent;
+    name.append(acct);
+  }
   const sub = document.createElement("span");
   sub.className = "item-sub";
   sub.textContent = `${c.tool} · ${c.model}`;

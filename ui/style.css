@@ -35,3 +35,5 @@ aside h3 { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color
 .item-main { flex:1; min-width:0; display:flex; flex-direction:column; }
 .item-sub { color:var(--mute); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .item-tok { font-variant-numeric:tabular-nums; color:#c9ced9; font-size:12px; }
+
+.acct { font-size:11px; font-weight:600; }

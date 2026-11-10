@@ -248,7 +248,7 @@ export class OfficeScene {
     title.textContent = `${c.role} · ${c.tool}`;
     const model = document.createElement("div");
     model.className = "tip-sub";
-    model.textContent = c.model + (c.accountAlias ? ` · ${c.accountAlias}` : "");
+    model.textContent = c.model + (c.accountAlias ? ` · @${c.accountAlias}` : "");
     this.tip.append(title, model);
     for (const [k, v] of rows) {
       const r = document.createElement("div");
