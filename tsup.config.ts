@@ -1,3 +1,4 @@
+import { cpSync } from "node:fs";
 import { defineConfig } from "tsup";
 
 export default defineConfig({
@@ -7,4 +8,7 @@ export default defineConfig({
   platform: "node",
   clean: true,
   banner: { js: "#!/usr/bin/env node" },
+  onSuccess: async () => {
+    cpSync("ui", "dist/ui", { recursive: true });
+  },
 });
