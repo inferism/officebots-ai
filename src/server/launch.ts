@@ -70,7 +70,7 @@ export async function ensureOffice(root: string, o: { cliPath: string; waitMs: n
   return null;
 }
 
-/** Opens the default browser at a loopback URL. */
+/** Opens a URL or a local file in the default browser. */
 export function openBrowser(url: string): void {
   const [cmd, args] =
     process.platform === "win32" ? ["cmd", ["/c", "start", '""', url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
