@@ -105,7 +105,8 @@ export function createClaudeCodeParser(ctx: ParseContext): LineParser {
     const agent: OfficeEvent["agent"] = sub
       ? { kind: "subagent", id: `agent-${agentId}`, parentSession: session }
       : { kind: "main" };
-    if (sub && ctx.agentType) agent.type = ctx.agentType;
+    const agentType = typeof ctx.agentType === "function" ? ctx.agentType() : ctx.agentType;
+    if (sub && agentType) agent.type = agentType;
 
     const cwd = str(rec.cwd) ?? lastCwd;
     if (!cwd) return "skip";

@@ -6,7 +6,7 @@ export type ParseContext = {
   /** Already-hashed account id (acct_xxxxxxxx), or null when unknown. */
   account?: string | null;
   /** Subagent type hint, e.g. from agent-<id>.meta.json. */
-  agentType?: string;
+  agentType?: string | (() => string | undefined);
 };
 
 /** Counts only. Never contains log content, only record type names and file positions. */
