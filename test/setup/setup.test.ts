@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { applySetup, applyUninstall, planSetup, planUninstall, type SetupPaths } from "../../src/setup/setup.js";
+import { applySetup, applyUninstall, planSetup, planUninstall, StalePlanError, type SetupPaths } from "../../src/setup/setup.js";
 
 let base: string;
 let p: SetupPaths;
@@ -80,6 +80,44 @@ describe("setup", () => {
     const plan = planSetup(p);
     expect(plan.ok).toBe(false);
     expect(readFileSync(settings(), "utf8")).toBe("{ // comment\n}");
+  });
+});
+
+describe("stale plans", () => {
+  it("setup refuses to apply a plan if settings.json changed after it was made, and writes nothing", () => {
+    writeFileSync(settings(), original);
+    const plan = planSetup(p);
+    if (!plan.ok) throw new Error(plan.reason);
+    // e.g. a second setup finished while this prompt was still open
+    writeFileSync(settings(), original.replace("dark", "light"));
+    expect(() => applySetup(plan, p)).toThrow(StalePlanError);
+    expect(readFileSync(settings(), "utf8")).toBe(original.replace("dark", "light"));
+    expect(existsSync(skill())).toBe(false);
+    expect(existsSync(p.statePath)).toBe(false);
+    expect(listing()).toEqual(["settings.json"]); // no backup either
+  });
+
+  it("the second of two overlapping setups cannot overwrite the first one's backup", () => {
+    writeFileSync(settings(), original);
+    const first = planSetup(p);
+    const second = planSetup(p); // both made from the original file
+    if (!first.ok || !second.ok) throw new Error("plan");
+    const { backupPath } = applySetup(first, p);
+    expect(() => applySetup(second, p)).toThrow(StalePlanError);
+    expect(readFileSync(backupPath!, "utf8")).toBe(original); // still the true original
+    applyUninstall(planUninstall(p), p);
+    expect(readFileSync(settings(), "utf8")).toBe(original); // and uninstall still restores it exactly
+  });
+
+  it("uninstall refuses a plan made from a file that has since changed", () => {
+    writeFileSync(settings(), original);
+    install();
+    const plan = planUninstall(p);
+    const edited = JSON.parse(readFileSync(settings(), "utf8"));
+    edited.theme = "light";
+    writeFileSync(settings(), JSON.stringify(edited, null, 2) + "\n");
+    expect(() => applyUninstall(plan, p)).toThrow(StalePlanError);
+    expect(JSON.parse(readFileSync(settings(), "utf8")).theme).toBe("light"); // untouched
   });
 });
 

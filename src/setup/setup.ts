@@ -97,8 +97,17 @@ export function planSetup(p: SetupPaths): SetupPlan {
   };
 }
 
+/** Thrown when settings.json changed between showing the plan and applying it. Nothing has been written. */
+export class StalePlanError extends Error {
+  constructor() {
+    super("settings.json changed since the plan was made, so nothing was written. Run the command again to see the current plan.");
+  }
+}
+
 /** Writes the backup, the new settings, the skill, and the state file. Returns the backup path, if any. */
 export function applySetup(plan: Extract<SetupPlan, { ok: true }>, p: SetupPaths): { backupPath: string | null } {
+  // A prompt can sit open for a long time. Never apply a plan made from a file that has since changed.
+  if (readText(plan.settingsPath) !== plan.before) throw new StalePlanError();
   const prev = readState(p);
   const state: State = prev ?? { version: 1, settingsPath: plan.settingsPath, backupPath: null, createdFile: false, afterHash: null, skill: null, at: "" };
   const stamp = (p.now?.() ?? new Date()).toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
@@ -128,6 +137,8 @@ export function applySetup(plan: Extract<SetupPlan, { ok: true }>, p: SetupPaths
 
 export type UninstallPlan = {
   settingsPath: string;
+  /** settings.json as it was when this plan was made (undefined if it did not exist). */
+  current: string | undefined;
   /** What happens to settings.json. */
   settings: "none" | "restore-backup" | "delete-file" | "remove-hook";
   after: string | undefined;
@@ -183,10 +194,11 @@ export function planUninstall(p: SetupPaths): UninstallPlan {
   }
 
   const diff = settings === "none" || current === undefined ? "" : unifiedDiff(current, after ?? "", settingsPath, after === undefined ? "/dev/null" : settingsPath);
-  return { settingsPath, settings, after, backupBytes, diff, skill, skillFile: skillPath, notes };
+  return { settingsPath, current, settings, after, backupBytes, diff, skill, skillFile: skillPath, notes };
 }
 
 export function applyUninstall(plan: UninstallPlan, p: SetupPaths): void {
+  if (readText(plan.settingsPath) !== plan.current) throw new StalePlanError();
   if (plan.settings === "delete-file") rmSync(plan.settingsPath, { force: true });
   else if (plan.settings === "restore-backup" && plan.backupBytes) atomicWrite(plan.settingsPath, plan.backupBytes);
   else if (plan.settings === "remove-hook" && plan.after !== undefined) atomicWrite(plan.settingsPath, plan.after);

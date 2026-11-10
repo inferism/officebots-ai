@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { personalConfigPath } from "../core/identity.js";
 import { normalizePath } from "../core/project.js";
 import { HOOK_COMMAND } from "../setup/settings-edit.js";
-import { applySetup, applyUninstall, planSetup, planUninstall, type SetupPaths } from "../setup/setup.js";
+import { applySetup, applyUninstall, planSetup, planUninstall, StalePlanError, type SetupPaths } from "../setup/setup.js";
 
 function paths(args: string[]): SetupPaths {
   const i = args.indexOf("--config-dir");
@@ -63,7 +63,14 @@ export async function setup(args: string[]): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const { backupPath } = applySetup(plan, p);
+  let backupPath: string | null;
+  try {
+    ({ backupPath } = applySetup(plan, p));
+  } catch (e) {
+    if (!(e instanceof StalePlanError)) throw e;
+    console.error(`officebots setup: ${e.message}`);
+    process.exit(1);
+  }
   if (backupPath) console.log(`backup: ${backupPath}`);
   console.log("done. Restart Claude Code sessions to pick up the hook. Run `officebots uninstall` to undo.");
 }
@@ -94,6 +101,12 @@ export async function uninstall(args: string[]): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  applyUninstall(plan, p);
+  try {
+    applyUninstall(plan, p);
+  } catch (e) {
+    if (!(e instanceof StalePlanError)) throw e;
+    console.error(`officebots uninstall: ${e.message}`);
+    process.exit(1);
+  }
   console.log("done.");
 }
