@@ -120,7 +120,7 @@ export function createClaudeCodeParser(ctx: ParseContext): LineParser {
       source: "adapter" as const,
       tool: "claude-code",
       model,
-      account: ctx.account ?? null,
+      account: ctx.accountFor?.(session) ?? ctx.account ?? null,
       session,
       agent,
       project,

@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
+/** Path in a comparable form: forward slashes, no trailing slash, lower case on Windows. */
+export const normalizePath = (p: string) => norm(p);
+
 const norm = (p: string) => {
   const s = p.replaceAll("\\", "/").replace(/\/+$/, "");
   return process.platform === "win32" ? s.toLowerCase() : s;

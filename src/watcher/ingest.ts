@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { zstdDecompressSync } from "node:zlib";
-import type { Adapter, LineParser } from "../adapters/types.js";
+import type { Adapter, LineParser, ParseContext } from "../adapters/types.js";
 import type { Source } from "../adapters/index.js";
 import type { OfficeEvent } from "../core/schema.js";
 import { readHead, Tailer } from "./tail.js";
@@ -57,6 +57,8 @@ export function createIngest(opts: IngestOptions): Ingest {
   const parsers = new Map<string, LineParser>();
   const queue = new Map<string, Promise<void>>();
   const adapterOf = new Map<string, Adapter>();
+  // who the logs under each source belong to (Claude Code logs carry no account themselves)
+  const accountOf = new Map<string, Pick<ParseContext, "account" | "accountFor">>();
   // Per conversation (thread key): ids emitted from its live file, so a later compressed copy adds
   // only what was missed; and threads we caught up on silently, whose compressed copy is skipped.
   const liveIds = new Map<string, Set<string>>();
@@ -70,7 +72,7 @@ export function createIngest(opts: IngestOptions): Ingest {
   let closed = false;
 
   const newParser = (file: string, adapter: Adapter) =>
-    adapter.createParser(file, { project: opts.project, hashAccount: opts.hashAccount });
+    adapter.createParser(file, { project: opts.project, hashAccount: opts.hashAccount, ...accountOf.get(file) });
 
   function parserFor(file: string, adapter: Adapter): LineParser {
     let p = parsers.get(file);
@@ -162,9 +164,10 @@ export function createIngest(opts: IngestOptions): Ingest {
 
   /** Register every existing log. On the first scan, old files are skipped to their end. */
   function scan(initial: boolean): void {
-    for (const { adapter, root } of opts.sources) {
+    for (const { adapter, root, account, accountFor } of opts.sources) {
       for (const file of walk(root, adapter)) {
         adapterOf.set(file, adapter);
+        accountOf.set(file, { account, accountFor });
         if (tailer.has(file) || doneCompressed.has(file)) {
           if (!initial) enqueue(file);
           continue;
@@ -202,6 +205,7 @@ export function createIngest(opts: IngestOptions): Ingest {
             src.root,
             (f) => {
               adapterOf.set(f, src.adapter);
+              accountOf.set(f, { account: src.account, accountFor: src.accountFor });
               enqueue(f);
             },
             (err) => {

@@ -5,6 +5,8 @@ export type ParseContext = {
   project: (cwd: string) => string | null;
   /** Already-hashed account id (acct_xxxxxxxx), or null when unknown. */
   account?: string | null;
+  /** Per-session account (e.g. recorded by a SessionStart hook). Takes priority over `account`. */
+  accountFor?: (session: string) => string | undefined;
   /** Hashes a raw account id found in a log. Adapters must never emit the raw id. */
   hashAccount?: (raw: string) => string;
   /** Subagent type hint, e.g. from agent-<id>.meta.json. */
