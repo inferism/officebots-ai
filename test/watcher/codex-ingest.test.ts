@@ -1,4 +1,4 @@
-import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync as copyRaw, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,6 +12,13 @@ const N2 = "rollout-2026-11-10T11-05-00-thread-0002.jsonl";
 const LIVE1 = join(fx, "2026/11/10", N1);
 const LIVE2 = join(fx, "2026/11/10", N2);
 const ZST1 = join(fx, "compressed", N1 + ".zst");
+
+/** Copies a fixture and marks the copy as modified now (a plain copy keeps the fixture's old timestamp). */
+function copyFileSync(from: string, to: string): void {
+  copyRaw(from, to);
+  const now = new Date();
+  utimesSync(to, now, now);
+}
 
 let root: string;
 let day: string;
