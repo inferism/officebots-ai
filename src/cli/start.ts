@@ -27,7 +27,10 @@ export function pickSources(args: string[], personalPath: string, usage: () => n
   ];
 }
 
-/** `--since <hours>`: also load sessions from the last N hours (as sleeping characters). Default is 2. */
+/** On start, sessions from the last 7 days are loaded as sleeping characters, so the room is not empty. */
+export const DEFAULT_SINCE_MS = 7 * 24 * 3600 * 1000;
+
+/** `--since <hours>` overrides the window (e.g. `--since 48` for two days). */
 export function parseSince(args: string[], usage: () => never): number | undefined {
   const i = args.indexOf("--since");
   if (i < 0) return undefined;
@@ -49,7 +52,7 @@ export async function start(args: string[], usage: () => never): Promise<void> {
 
   let office;
   try {
-    office = await startOffice({ root, logSources: sources, recentMs: parseSince(args, usage), uiDir, personalConfigPath: personalPath, hashAccount: hash, onProblem: (m) => console.error(`officebots: ${m}`) });
+    office = await startOffice({ root, logSources: sources, recentMs: parseSince(args, usage) ?? DEFAULT_SINCE_MS, uiDir, personalConfigPath: personalPath, hashAccount: hash, onProblem: (m) => console.error(`officebots: ${m}`) });
   } catch (e) {
     if (e instanceof AlreadyRunningError) {
       console.error(`officebots: ${e.message}. If that is stale, delete .officebots/.state/run.json.`);

@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { parseSince } from "../src/cli/start.js";
+import { DEFAULT_SINCE_MS, parseSince } from "../src/cli/start.js";
 
 const usage = (): never => {
   throw new Error("usage");
 };
 
 describe("start --since", () => {
+  it("loads the last 7 days by default", () => {
+    expect(DEFAULT_SINCE_MS).toBe(7 * 24 * 3600 * 1000);
+  });
+
   it("is off by default and converts hours to milliseconds", () => {
     expect(parseSince([], usage)).toBeUndefined();
     expect(parseSince(["--since", "6"], usage)).toBe(6 * 3600 * 1000);

@@ -27,7 +27,7 @@ officebots open
 
 This creates a small `.officebots/` folder in the project, starts that project's office in the background, and opens it in your browser. After that, opening Claude Code in the project starts the office by itself. In projects without `.officebots/office.json` the hook does nothing.
 
-Each project gets its own office on its own local port. Sessions in subfolders and git worktrees of the project count as the same project.
+The office shows sessions from the last 7 days (as sleeping characters) plus anything happening now; `officebots start --since <hours>` changes that window. Each project gets its own office on its own local port. Sessions in subfolders and git worktrees of the project count as the same project.
 
 | command | what it does |
 |---|---|
