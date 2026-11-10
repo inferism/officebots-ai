@@ -27,6 +27,15 @@ export function pickSources(args: string[], personalPath: string, usage: () => n
   ];
 }
 
+/** `--since <hours>`: also load sessions from the last N hours (as sleeping characters). Default is 2. */
+export function parseSince(args: string[], usage: () => never): number | undefined {
+  const i = args.indexOf("--since");
+  if (i < 0) return undefined;
+  const hours = Number(args[i + 1]);
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 24 * 30) usage();
+  return hours * 3600 * 1000;
+}
+
 export async function start(args: string[], usage: () => never): Promise<void> {
   const personalPath = personalConfigPath();
   const root = findProjectRoot(process.cwd()) ?? process.cwd();
@@ -40,7 +49,7 @@ export async function start(args: string[], usage: () => never): Promise<void> {
 
   let office;
   try {
-    office = await startOffice({ root, logSources: sources, uiDir, personalConfigPath: personalPath, hashAccount: hash, onProblem: (m) => console.error(`officebots: ${m}`) });
+    office = await startOffice({ root, logSources: sources, recentMs: parseSince(args, usage), uiDir, personalConfigPath: personalPath, hashAccount: hash, onProblem: (m) => console.error(`officebots: ${m}`) });
   } catch (e) {
     if (e instanceof AlreadyRunningError) {
       console.error(`officebots: ${e.message}. If that is stale, delete .officebots/.state/run.json.`);

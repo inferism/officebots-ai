@@ -2,7 +2,7 @@
 const USAGE = [
   "usage:",
   "  officebots open [--no-open]                open this project's office (creates .officebots/, starts it if needed)",
-  "  officebots start [--claude-dir <dir>]... [--codex-dir <dir>]   run this project's office in the foreground",
+  "  officebots start [--since <hours>] [--claude-dir <dir>]... [--codex-dir <dir>]   run this project's office in the foreground",
   "  officebots status | stop                   check on, or stop, this project's office",
   "  officebots setup [--dry-run] [--yes]       install the /officebots skill and the SessionStart hook",
   "  officebots uninstall [--dry-run] [--yes]   undo setup",
