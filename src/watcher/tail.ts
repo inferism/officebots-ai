@@ -1,5 +1,20 @@
 import { open } from "node:fs/promises";
 
+/** First bytes of a file as complete lines (a cut-off last line is dropped). */
+export async function readHead(file: string, maxBytes = 64 * 1024): Promise<string[]> {
+  const fh = await open(file, "r");
+  try {
+    const buf = Buffer.alloc(maxBytes);
+    const { bytesRead } = await fh.read(buf, 0, maxBytes, 0);
+    const text = buf.subarray(0, bytesRead).toString("utf8");
+    const lines = text.split("\n");
+    if (bytesRead === maxBytes || !text.endsWith("\n")) lines.pop();
+    return lines.map((l) => l.replace(/\r$/, ""));
+  } finally {
+    await fh.close();
+  }
+}
+
 const CHUNK = 4 * 1024 * 1024;
 
 type State = { offset: number; rest: Buffer; line: number };

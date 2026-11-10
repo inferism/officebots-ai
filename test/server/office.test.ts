@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { claudeCodeAdapter } from "../../src/adapters/index.js";
 import { AlreadyRunningError, startOffice, type Office } from "../../src/server/office.js";
 import type { Room } from "../../src/server/room.js";
 import { appendLines, assistantLine } from "../helpers/fake-writer.js";
@@ -40,7 +41,7 @@ const repo = (name: string) => {
   return join(base, name);
 };
 async function open(root: string, extra = {}) {
-  const o = await startOffice({ root, claudeProjectsDir: claude, uiDir, throttleMs: 20, ...extra });
+  const o = await startOffice({ root, logSources: [{ adapter: claudeCodeAdapter, root: claude }], uiDir, throttleMs: 20, ...extra });
   offices.push(o);
   return o;
 }

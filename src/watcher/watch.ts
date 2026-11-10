@@ -10,12 +10,13 @@ export function watchRoot(
   onFile: (path: string) => void,
   onError: (err: Error) => void,
   debounceMs = 30,
+  filter: (path: string) => boolean = (p) => p.endsWith(".jsonl"),
 ): { close(): void } {
   const timers = new Map<string, NodeJS.Timeout>();
   const w = watch(root, { recursive: true }, (_event, name) => {
     if (!name) return;
     const path = join(root, String(name));
-    if (!path.endsWith(".jsonl")) return;
+    if (!filter(path)) return;
     clearTimeout(timers.get(path));
     timers.set(
       path,

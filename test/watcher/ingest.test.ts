@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { claudeCodeAdapter } from "../../src/adapters/index.js";
 import { createIngest } from "../../src/watcher/ingest.js";
 import { appendLines, assistantLine } from "../helpers/fake-writer.js";
 
@@ -24,7 +25,7 @@ describe("ingest (real fs.watch)", () => {
   it("stress: 10k lines in bursts across 50 files, some torn, zero missed or duplicated", async () => {
     const counts = new Map<string, number>();
     const ingest = createIngest({
-      root,
+      sources: [{ adapter: claudeCodeAdapter, root }],
       project: () => "p",
       onEvents: (evs) => evs.forEach((e) => counts.set(e.id, (counts.get(e.id) ?? 0) + 1)),
     });
@@ -71,7 +72,7 @@ describe("ingest (real fs.watch)", () => {
     appendLines(old, [assistantLine({ session: "o", msgId: "m_old_1", cwd: "/x" })]);
     const ids: string[] = [];
     const ingest = createIngest({
-      root,
+      sources: [{ adapter: claudeCodeAdapter, root }],
       project: () => "p",
       onEvents: (evs) => ids.push(...evs.map((e) => e.id)),
       recentMs: 1000,
@@ -99,7 +100,7 @@ describe("ingest (real fs.watch)", () => {
     appendFileSync(file, assistantLine({ session: "s", msgId: "out", cwd: "/out/x" }) + "\n");
     appendFileSync(file, '{"broken": "SECRET-TEXT\n');
     const ingest = createIngest({
-      root,
+      sources: [{ adapter: claudeCodeAdapter, root }],
       project: (cwd) => (cwd.startsWith("/in") ? "p" : null),
       onEvents: (evs) => ids.push(...evs.map((e) => e.id)),
       onProblem: (m) => problems.push(m),

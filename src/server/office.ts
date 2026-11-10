@@ -2,6 +2,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { basename, join } from "node:path";
+import type { Source } from "../adapters/index.js";
+import { createAccountHasher } from "../core/identity.js";
 import { createProjectResolver, projectKey } from "../core/project.js";
 import type { OfficeEvent } from "../core/schema.js";
 import { createIngest, type Ingest } from "../watcher/ingest.js";
@@ -13,8 +15,10 @@ import { attachWs } from "./ws.js";
 export type OfficeOptions = {
   /** Project root folder. */
   root: string;
-  /** Directory holding Claude Code project logs. Omit for demo mode: no log reading, no files written. */
-  claudeProjectsDir?: string;
+  /** Log folders to watch (Claude Code, Codex, ...). Omit for demo mode: no log reading, no files written. */
+  logSources?: Source[];
+  /** Hashes raw account ids found in logs. Defaults to a salted hash with the salt in the personal config. */
+  hashAccount?: (raw: string) => string;
   /** Folder with the built UI (index.html plus assets). */
   uiDir: string;
   idleAfterSec?: number;
@@ -56,7 +60,7 @@ function pidAlive(pid: unknown): boolean {
 export async function startOffice(opts: OfficeOptions): Promise<Office> {
   const now = opts.now ?? Date.now;
   const runFile = runFilePath(opts.root);
-  const live = opts.claudeProjectsDir !== undefined;
+  const live = opts.logSources !== undefined;
 
   if (live && existsSync(runFile)) {
     try {
@@ -101,10 +105,11 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
   };
 
   let ingest: Ingest | undefined;
-  if (opts.claudeProjectsDir) {
+  if (opts.logSources) {
     const resolve = createProjectResolver();
     ingest = createIngest({
-      root: opts.claudeProjectsDir,
+      sources: opts.logSources,
+      hashAccount: opts.hashAccount ?? createAccountHasher(),
       project: (cwd) => (resolve(cwd) === key ? key : null),
       onEvents: apply,
       onProblem: opts.onProblem,

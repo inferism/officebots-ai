@@ -7,8 +7,8 @@ function usage(): never {
   console.error(
     [
       "usage:",
-      "  officebots start [--claude-dir <dir>]   open this project's office",
-      "  officebots doctor [--claude-dir <dir>]  show watched roots and unknown record counts",
+      "  officebots start [--claude-dir <dir>] [--codex-dir <dir>]   open this project's office",
+      "  officebots doctor [--claude-dir <dir>] [--codex-dir <dir>]  show watched roots and unknown record counts",
       "  officebots demo [--agents N] [--interns N] [--idle-after SEC]   synthetic office, reads no logs",
       "  officebots replay <session.jsonl> [--project <dir>]",
     ].join("\n"),
