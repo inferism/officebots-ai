@@ -30,6 +30,8 @@ export type OfficeOptions = {
   recentMs?: number;
   now?: () => number;
   onProblem?: (msg: string) => void;
+  /** Called when the project's .officebots/.state/run.json disappears (the folder was deleted): the office has nothing left to serve. */
+  onOrphaned?: () => void;
   /** Max snapshot pushes per second is 1000 / throttleMs. Default 250 (4/s). */
   throttleMs?: number;
 };
@@ -153,6 +155,20 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
   await ingest?.start();
   push();
 
+  // If someone deletes .officebots while the office runs, notice and let the caller shut it down.
+  let orphanTimer: NodeJS.Timeout | undefined;
+  if (live && opts.onOrphaned) {
+    let missing = 0;
+    orphanTimer = setInterval(() => {
+      missing = existsSync(runFile) ? 0 : missing + 1;
+      if (missing >= 3) {
+        clearInterval(orphanTimer);
+        opts.onOrphaned!();
+      }
+    }, 1000);
+    orphanTimer.unref();
+  }
+
   return {
     url,
     port,
@@ -161,6 +177,7 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
     snapshot: () => room.snapshot(now(), settings),
     async close() {
       clearInterval(tick);
+      clearInterval(orphanTimer);
       settingsWatch?.close();
       clearTimeout(timer);
       ingest?.close();

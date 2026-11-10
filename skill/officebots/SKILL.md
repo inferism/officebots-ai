@@ -28,7 +28,7 @@ A live isometric office for the current project. Each AI agent working here (too
 ## If it does not work
 
 - **`officebots: command not found`**: the package is not installed. Tell the user to run `npm install -g officebots`, then `officebots setup`. Do not try to install it yourself.
-- **Any other error**: show the user the message as it is. The office's own log is at `.officebots/.state/office.log`.
+- **Any other error**: show the user the message as it is. `officebots open` prints where the office's log is if it fails to start (it is kept outside the project, in `~/.config/officebots/logs/`).
 
 ## Rules
 

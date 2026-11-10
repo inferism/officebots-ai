@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { findProjectRoot } from "../core/project.js";
-import { ensureOffice, ensureProjectFiles, openBrowser } from "../server/launch.js";
+import { ensureOffice, ensureProjectFiles, officeLogPath, openBrowser } from "../server/launch.js";
 import { findOfficePort } from "../server/loopback.js";
 
 const cliPath = () => process.argv[1] ?? fileURLToPath(new URL("./cli.js", import.meta.url));
@@ -13,7 +13,7 @@ export async function open(args: string[]): Promise<void> {
   if (made.created) console.log("created .officebots/ in this project");
   const port = await ensureOffice(root, { cliPath: cliPath(), waitMs: 8000 });
   if (port === null) {
-    console.error("officebots: the office did not start. See .officebots/.state/office.log");
+    console.error(`officebots: the office did not start. See its log: ${officeLogPath(root)}`);
     process.exit(1);
   }
   const url = `http://127.0.0.1:${port}`;

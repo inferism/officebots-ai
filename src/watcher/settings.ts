@@ -1,34 +1,24 @@
-import { existsSync, watch } from "node:fs";
-import { basename, dirname } from "node:path";
+import { unwatchFile, watchFile } from "node:fs";
 
 /**
- * Calls onChange (debounced) when any of the given files is created, edited or removed. Watches the
- * folders that hold them, since editors often replace a file instead of writing into it.
+ * Calls onChange (debounced) when any of the given files is created, edited or removed.
+ *
+ * This polls the files' modified time and size instead of using OS change events. On Windows an
+ * OS-level watch on a folder keeps a handle open that stops the folder (here, .officebots) from being
+ * deleted or renamed while the office runs. Polling holds no handles, and two files twice a second is cheap.
  */
-export function watchFiles(files: string[], onChange: () => void, debounceMs = 100): { close(): void } {
+export function watchFiles(files: string[], onChange: () => void, intervalMs = 500): { close(): void } {
   let timer: NodeJS.Timeout | undefined;
-  const fire = () => {
+  const listener = (curr: { mtimeMs: number; size: number }, prev: { mtimeMs: number; size: number }) => {
+    if (curr.mtimeMs === prev.mtimeMs && curr.size === prev.size) return;
     clearTimeout(timer);
-    timer = setTimeout(onChange, debounceMs);
+    timer = setTimeout(onChange, 100);
   };
-  const byDir = new Map<string, Set<string>>();
-  for (const f of files) {
-    const dir = dirname(f);
-    byDir.set(dir, (byDir.get(dir) ?? new Set()).add(basename(f)));
-  }
-  const watchers = [...byDir]
-    .filter(([dir]) => existsSync(dir))
-    .map(([dir, names]) => {
-      const w = watch(dir, (_event, name) => {
-        if (name && names.has(String(name))) fire();
-      });
-      w.on("error", () => {});
-      return w;
-    });
+  for (const f of files) watchFile(f, { interval: intervalMs, persistent: false }, listener);
   return {
     close() {
       clearTimeout(timer);
-      for (const w of watchers) w.close();
+      for (const f of files) unwatchFile(f, listener);
     },
   };
 }

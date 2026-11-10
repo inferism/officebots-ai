@@ -1,8 +1,11 @@
 // Starting an office in the background, and opening it, for the hook, `officebots open` and the /officebots skill.
 import { spawn } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { projectConfigPath } from "../core/config.js";
+import { personalConfigPath } from "../core/identity.js";
+import { projectKey } from "../core/project.js";
 import { ensureGitignore } from "./launcher.js";
 import { findOfficePort } from "./loopback.js";
 
@@ -38,13 +41,31 @@ export function acquireStartLock(root: string): boolean {
   }
 }
 
-/** Runs `officebots start` for this project detached, with output going to .officebots/.state/office.log. */
+/**
+ * Where a background office writes its log. Next to the personal config, not inside the project:
+ * an open file in .officebots would stop Windows from deleting that folder while the office runs.
+ */
+export function officeLogPath(root: string, personalPath = personalConfigPath()): string {
+  return join(dirname(personalPath), "logs", `${projectKey(root)}.log`);
+}
+
+/**
+ * How to run an office in the background. It runs from the temp folder, not the project: a process's
+ * working directory counts as "in use" on Windows and would stop the project folder being renamed or deleted.
+ */
+export function officeLaunchSpec(root: string, cliPath: string): { args: string[]; cwd: string } {
+  return { args: [cliPath, "start", "--project", root], cwd: tmpdir() };
+}
+
+/** Runs `officebots start` for this project detached, with output going to the office log. */
 export function launchOffice(root: string, cliPath: string): void {
-  mkdirSync(stateDir(root), { recursive: true });
-  const log = openSync(join(stateDir(root), "office.log"), "w");
+  const logFile = officeLogPath(root);
+  mkdirSync(dirname(logFile), { recursive: true });
+  const log = openSync(logFile, "w");
   try {
-    const child = spawn(process.execPath, [cliPath, "start"], {
-      cwd: root,
+    const spec = officeLaunchSpec(root, cliPath);
+    const child = spawn(process.execPath, spec.args, {
+      cwd: spec.cwd,
       detached: true,
       stdio: ["ignore", log, log],
       windowsHide: true,

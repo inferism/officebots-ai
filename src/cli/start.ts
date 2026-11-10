@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { claudeCodeAdapter, codexAdapter, defaultSources, type Source, withAccounts } from "../adapters/index.js";
 import { createAccountHasher, personalConfigPath } from "../core/identity.js";
@@ -41,7 +41,10 @@ export function parseSince(args: string[], usage: () => never): number | undefin
 
 export async function start(args: string[], usage: () => never): Promise<void> {
   const personalPath = personalConfigPath();
-  const root = findProjectRoot(process.cwd()) ?? process.cwd();
+  const pi = args.indexOf("--project");
+  if (pi >= 0 && !args[pi + 1]) usage();
+  // --project is how the background launcher says which project this is (it runs from the temp folder)
+  const root = pi >= 0 ? resolve(args[pi + 1]!) : (findProjectRoot(process.cwd()) ?? process.cwd());
   const hash = createAccountHasher(personalPath);
   const sources = withAccounts(pickSources(args, personalPath, usage), {
     hash,
@@ -50,9 +53,15 @@ export async function start(args: string[], usage: () => never): Promise<void> {
   });
   const uiDir = fileURLToPath(new URL("./ui/", import.meta.url));
 
-  let office;
+  let office: Awaited<ReturnType<typeof startOffice>> | undefined;
   try {
-    office = await startOffice({ root, logSources: sources, recentMs: parseSince(args, usage) ?? DEFAULT_SINCE_MS, uiDir, personalConfigPath: personalPath, hashAccount: hash, onProblem: (m) => console.error(`officebots: ${m}`) });
+    office = await startOffice({ root, logSources: sources, recentMs: parseSince(args, usage) ?? DEFAULT_SINCE_MS, uiDir, personalConfigPath: personalPath, hashAccount: hash,
+      // deleting .officebots means "I am done with this office": stop instead of lingering with nothing to report to
+      onOrphaned: () => {
+        console.error("officebots: .officebots was removed, shutting down");
+        void office?.close().then(() => process.exit(0));
+      },
+      onProblem: (m) => console.error(`officebots: ${m}`) });
   } catch (e) {
     if (e instanceof AlreadyRunningError) {
       console.error(`officebots: ${e.message}. If that is stale, delete .officebots/.state/run.json.`);

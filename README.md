@@ -44,6 +44,8 @@ npm run build
 npm install -g .
 ```
 
+`npm install -g .` links the `officebots` command to the cloned folder, so keep that folder where it is, and update later with `git pull && npm run build`. If you would rather have a standalone copy, run `npm pack` and then `npm install -g ./officebots-1.0.0.tgz` instead of the last step.
+
 Then, optionally, hook it into Claude Code:
 
 ```bash
