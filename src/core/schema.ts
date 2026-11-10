@@ -52,7 +52,11 @@ const TOKEN_KEYS = ["input", "output", "cacheRead", "cacheWrite", "reasoning"] a
 const isObject = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
 
-const isStr = (x: unknown): x is string => typeof x === "string";
+// Free-text fields come from logs and from POST /events. Capping their length, and allowing only the
+// hashed account form, keeps prompt text or raw ids from riding along in a "model" or "account" field.
+export const MAX_FIELD_LENGTH = 200;
+export const ACCOUNT_PATTERN = /^acct_[0-9a-f]{8}$/;
+const isStr = (x: unknown): x is string => typeof x === "string" && x.length <= MAX_FIELD_LENGTH;
 
 // ISO-8601 date-time that Date can actually parse.
 function isIsoTime(x: unknown): x is string {
@@ -97,7 +101,7 @@ export function validateEvent(input: unknown): OfficeEvent | null {
   if (!isStr(source) || !SOURCES.includes(source)) return null;
   if (!isStr(tool) || tool === "") return null;
   if (!isStr(model)) return null;
-  if (account !== null && !isStr(account)) return null;
+  if (account !== null && !(isStr(account) && ACCOUNT_PATTERN.test(account))) return null;
   if (!isStr(session) || session === "") return null;
   if (!isStr(project)) return null;
   if (!isStr(event) || !EVENTS.includes(event)) return null;

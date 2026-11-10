@@ -20,7 +20,7 @@ export async function doctor(args: string[]): Promise<void> {
         continue;
       }
       // Everything is counted as "ours" here, so no project filter hides unknown records.
-      const ingest = createIngest({ sources: [{ adapter, root }], project: () => "doctor", hashAccount: () => "acct_doctor", onEvents: () => {}, recentMs: day, catchUpOld: false });
+      const ingest = createIngest({ sources: [{ adapter, root }], project: () => "doctor", hashAccount: () => "acct_00000000", onEvents: () => {}, recentMs: day, catchUpOld: false });
       await ingest.start(); // reads files changed in the last 24 h
       ingest.close();
       console.log(`  scanned (changed in last 24 h): events=${ingest.stats.events} parse errors=${ingest.stats.errors}`);
