@@ -1,3 +1,4 @@
+import { demo } from "./cli/demo.js";
 import { doctor } from "./cli/doctor.js";
 import { replay } from "./cli/replay.js";
 import { start } from "./cli/start.js";
@@ -8,6 +9,7 @@ function usage(): never {
       "usage:",
       "  officebots start [--claude-dir <dir>]   open this project's office",
       "  officebots doctor [--claude-dir <dir>]  show watched roots and unknown record counts",
+      "  officebots demo [--agents N] [--interns N] [--idle-after SEC]   synthetic office, reads no logs",
       "  officebots replay <session.jsonl> [--project <dir>]",
     ].join("\n"),
   );
@@ -17,5 +19,6 @@ function usage(): never {
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === "replay") replay(rest, usage);
 else if (cmd === "start") await start(rest, usage);
+else if (cmd === "demo") await demo(rest);
 else if (cmd === "doctor") await doctor(rest);
 else usage();
