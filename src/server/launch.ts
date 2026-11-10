@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { projectConfigPath } from "../core/config.js";
+import { ensureGitignore } from "./launcher.js";
 import { findOfficePort } from "./loopback.js";
 
 const stateDir = (root: string) => join(root, ".officebots", ".state");
@@ -12,8 +13,7 @@ const LOCK_FRESH_MS = 15_000;
 export function ensureProjectFiles(root: string): { created: boolean } {
   const dir = join(root, ".officebots");
   mkdirSync(join(dir, ".state"), { recursive: true });
-  const ignore = join(dir, ".gitignore");
-  if (!existsSync(ignore)) writeFileSync(ignore, ".state/\n");
+  ensureGitignore(root);
   const cfg = projectConfigPath(root);
   if (existsSync(cfg)) return { created: false };
   writeFileSync(cfg, JSON.stringify({ roles: {}, rules: [] }, null, 2) + "\n");

@@ -10,6 +10,7 @@ import type { OfficeEvent } from "../core/schema.js";
 import { createIngest, type Ingest } from "../watcher/ingest.js";
 import { watchFiles } from "../watcher/settings.js";
 import { createHttpServer } from "./http.js";
+import { ensureGitignore, stablePort, writeLauncher } from "./launcher.js";
 import { findOfficePort } from "./loopback.js";
 import { createRoom, type Room } from "./room.js";
 import { attachWs } from "./ws.js";
@@ -108,17 +109,29 @@ export async function startOffice(opts: OfficeOptions): Promise<Office> {
     });
   }
 
-  await new Promise<void>((res, rej) => {
-    server.once("error", rej);
-    server.listen(0, "127.0.0.1", res);
-  });
+  const listenOn = (p: number) =>
+    new Promise<void>((res, rej) => {
+      const onError = (e: Error) => rej(e);
+      server.once("error", onError);
+      server.listen(p, "127.0.0.1", () => {
+        server.removeListener("error", onError);
+        res();
+      });
+    });
+  try {
+    // a real office keeps the same address between runs, so bookmarks and .officebots/office.html keep working
+    await listenOn(live ? stablePort(key) : 0);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EADDRINUSE") throw e;
+    await listenOn(0); // something else has that port: any free one will do
+  }
   port = (server.address() as AddressInfo).port;
   const url = `http://127.0.0.1:${port}`;
 
   if (live) {
     mkdirSync(join(opts.root, ".officebots", ".state"), { recursive: true });
-    const ignore = join(opts.root, ".officebots", ".gitignore");
-    if (!existsSync(ignore)) writeFileSync(ignore, ".state/\n");
+    ensureGitignore(opts.root);
+    writeLauncher(opts.root, { port, key, name: basename(opts.root) });
     writeFileSync(runFile, JSON.stringify({ port, pid: process.pid, url, startedAt: new Date().toISOString() }));
     rmSync(join(opts.root, ".officebots", ".state", "start.lock"), { force: true }); // up now: release the start lock
   }

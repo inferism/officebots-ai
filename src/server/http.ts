@@ -54,7 +54,8 @@ export function createHttpServer(opts: {
       return;
     }
     if (path === "/health") {
-      res.writeHead(200, { "Content-Type": "application/json" });
+      // Readable from the double-click launcher page (a file:// page). It only says "up" and the project key.
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" });
       res.end(JSON.stringify({ ok: true, project: opts.project.key }));
       return;
     }

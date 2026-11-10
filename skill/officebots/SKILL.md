@@ -17,7 +17,7 @@ A live isometric office for the current project. Each AI agent working here (too
 
    It creates `.officebots/` in the project if it is missing, starts this project's office in the background if it is not already running, and opens it in the browser. It prints the office URL.
 
-2. Tell the user the URL it printed and that the office is open. Mention that Claude Code sessions in this project will start the office automatically from now on (if `officebots setup` has been run), and that other tools can report in with `officebots ping --tool <name>`.
+2. Tell the user the URL it printed and that the office is open. Tell them they can also double-click `.officebots/office.html` in the project, or bookmark the address, to get back to it later. Mention that Claude Code sessions in this project will start the office automatically from now on (if `officebots setup` has been run), and that other tools can report in with `officebots ping --tool <name>`.
 
 ## Other commands
 

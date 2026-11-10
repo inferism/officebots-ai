@@ -19,6 +19,7 @@ export async function open(args: string[]): Promise<void> {
   const url = `http://127.0.0.1:${port}`;
   if (!args.includes("--no-open")) openBrowser(url);
   console.log(`officebots: office for this project is open at ${url}`);
+  console.log("next time: double-click .officebots/office.html in the project, or bookmark that address");
 }
 
 export async function status(): Promise<void> {

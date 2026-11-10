@@ -17,6 +17,9 @@ export function attachWs(server: Server, getPort: () => number, onConnect: (send
       done(ok, 403, "forbidden");
     },
   });
+  // ws re-emits the HTTP server's errors (e.g. a port already in use). The office handles those on the server itself;
+  // without a listener here they would crash the process instead.
+  wss.on("error", () => {});
   wss.on("connection", (ws) => {
     ws.on("error", () => ws.terminate());
     onConnect((m) => ws.send(m));

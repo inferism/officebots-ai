@@ -16,7 +16,7 @@ export async function exportHtml(args: string[], usage: () => never): Promise<vo
   const oi = args.indexOf("--out");
   if (oi >= 0 && !args[oi + 1]) usage();
   const root = findProjectRoot(process.cwd()) ?? process.cwd();
-  const out = resolve(oi >= 0 ? args[oi + 1]! : join(root, ".officebots", ".state", "office.html"));
+  const out = resolve(oi >= 0 ? args[oi + 1]! : join(root, ".officebots", ".state", "snapshot.html"));
 
   const personalPath = personalConfigPath();
   const hash = createAccountHasher(personalPath);

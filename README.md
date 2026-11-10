@@ -62,6 +62,15 @@ officebots open
 
 This creates a small `.officebots/` folder in the project, starts that project's office in the background, and opens it in your browser. After `setup`, you can also type `/officebots` in Claude Code, and just opening Claude Code in that project starts the office by itself. In projects without `.officebots/office.json` the hook does nothing.
 
+### Getting back to it
+
+You do not need to type anything each time:
+
+- **Double-click `.officebots/office.html`** in the project folder. If the office is running it takes you straight to it; if not, it tells you how to start it. (The file is git-ignored, and rewritten each time the office starts.)
+- **Bookmark the address.** Each project's office uses the same local port every time (a port derived from the project, falling back to a free one only if another program is using it), so a bookmark keeps working.
+- **After `officebots setup`**, simply opening Claude Code in the project starts the office in the background, so the file or bookmark just works.
+- Or run `officebots open` / type `/officebots`, which also opens the browser for you.
+
 At startup the office loads sessions from the last 24 hours as sleeping characters, so the room is not empty, and then follows what happens live. `officebots start --since 168` widens that window (here to a week).
 
 ### Commands
