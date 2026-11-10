@@ -1,9 +1,24 @@
 {
   "name": "officebots",
-  "version": "0.1.0",
-  "description": "A live isometric office that shows which AI agents are working on a project.",
-  "type": "module",
+  "version": "1.0.0",
+  "description": "A live isometric office that shows which AI agents (Claude Code, Codex, ...) are working on your project. Local only.",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "ai-agents",
+    "visualization",
+    "observability"
+  ],
+  "homepage": "https://github.com/inferism/officebots-ai#readme",
+  "bugs": {
+    "url": "https://github.com/inferism/officebots-ai/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inferism/officebots-ai.git"
+  },
   "license": "MIT",
+  "type": "module",
   "engines": {
     "node": ">=22.15"
   },
@@ -11,13 +26,18 @@
     "officebots": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skill",
+    "docs/settings.md",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p ui/tsconfig.json",
-    "check:fixtures": "node scripts/check-fixtures.mjs"
+    "check:fixtures": "node scripts/check-fixtures.mjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
